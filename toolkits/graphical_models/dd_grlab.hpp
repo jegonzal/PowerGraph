@@ -226,7 +226,7 @@ struct gather_type
    neighbor_conf += other.neighbor_conf;
    neighbor_distribution += other.neighbor_distribution;
    sq_norm_g += other.sq_norm_g;
-   multipliers += multipliers;
+   multipliers += other.multipliers;
    
    return *this;
  }
@@ -362,6 +362,7 @@ public graphlab::IS_POD_TYPE
     virtual void scatter(icontext_type& context, const vertex_type& vertex, 
                          edge_type& edge) const = 0;
 }; // end of class bp_vertex_program
+
 
 
 
@@ -653,6 +654,7 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // This class implements the "projected" version of dual decomposition described
 // in:
@@ -699,13 +701,12 @@ struct dd_vertex_program_projected : public dd_vertex_program {
      */
     gather_type gather(icontext_type& context, const vertex_type& vertex, 
                        edge_type& edge) const {
-        
         const vertex_type other_vertex = get_other_vertex(edge, vertex);
         const vertex_data& vdata = vertex.data();
         edge_data& edata = edge.data();
-        if (vdata.nvars == 1 ) 
-        {
-            // Unary factor.
+       
+        if (vdata.factor_type == VAR ) 
+        {   // Unary factor.
             if (opts.verbose > 1) {
             cout << "This unary factor has " << vertex.num_in_edges() << 
             " in edges and " << vertex.num_out_edges() << " out edges" << endl; }
@@ -713,7 +714,7 @@ struct dd_vertex_program_projected : public dd_vertex_program {
             return gatherdata; 
         } 
         else 
-        {
+        {   
             // General factor.
             factor_type messages;
             //messages.resize(vdata.potentials.size());
@@ -728,17 +729,16 @@ struct dd_vertex_program_projected : public dd_vertex_program {
                 }
                 offset += vdata.cards[k];
             }
+    
             CHECK_GE(index_neighbor, 0);
             vector <int> neighbor_conf(vdata.nvars, 0);
             neighbor_conf[index_neighbor] = other_vertex.data().best_configuration;
-            
             for (int state = 0; state < vdata.cards[index_neighbor]; ++state) {
                 messages[offset + state] = edata.multiplier_messages[state] + edata.potentials[state];               
             }
             gather_type gather_data(messages,neighbor_conf);
             return gather_data;
         }
-       // cout << "gather end" << endl;
     }; // end of gather function
     
     
@@ -763,22 +763,18 @@ struct dd_vertex_program_projected : public dd_vertex_program {
     void apply(icontext_type& context, vertex_type& vertex, 
                const gather_type& total) {
         vertex_data& vdata = vertex.data();
-        //cout << "begin apply" << endl;
+       
      if (!opts.debug){
-        if (vdata.nvars == 1 ) {
-           if (context.iteration()%2 != 0) 
-        {   
-                                               
+        if (vdata.factor_type == VAR ) {
+           if (context.iteration()%2 != 0) {   
             vdata.beliefs = total.messages / static_cast<double>(vdata.degree);
             vdata.beliefs.maxCoeff(&vdata.best_configuration);
             //Find primal contrib
             vdata.primal_contrib = vdata.potentials[vdata.best_configuration];
-                   
             }
         } 
-        else 
-         {if(context.iteration()%2 == 0)
-           {
+        else {
+          if(context.iteration()%2 == 0){
             // General factor.
             vec beliefs = vdata.potentials;
             int num_configurations = vdata.potentials.size();
@@ -799,9 +795,8 @@ struct dd_vertex_program_projected : public dd_vertex_program {
             vdata.dual_contrib = beliefs.maxCoeff(&vdata.best_configuration);
             //Find primal contrib
             int conf_index = get_configuration_index(vertex, total.neighbor_conf);
-            vdata.primal_contrib = vdata.potentials[conf_index]; 
-                    
-            }
+            vdata.primal_contrib = vdata.potentials[conf_index];       
+         }
         }
       }
       else usleep(1);
@@ -827,12 +822,14 @@ struct dd_vertex_program_projected : public dd_vertex_program {
      */
     void scatter(icontext_type& context, const vertex_type& vertex, 
                  edge_type& edge) const {  
+       
         const vertex_data& vdata = vertex.data();
         edge_data& edata = edge.data();
         const vertex_type other_vertex = get_other_vertex(edge, vertex);
         if(!opts.debug){
-        if (vdata.nvars == 1 ) {
+        if (vdata.factor_type == VAR ) {
             if (context.iteration()%2 != 0) {
+
             // Unary factor. Update the messages (Lagrange multipliers).      
              double stepsize = update_stepsize(context, 1, global_vars.old_dual, global_vars.primal_best, 
                                               global_vars.sq_norm_g, global_vars.dual_inc_count, 0);
@@ -859,11 +856,12 @@ struct dd_vertex_program_projected : public dd_vertex_program {
             CHECK_GE(index_neighbor, 0);
             CHECK_GE(states[index_neighbor], 0);
             CHECK_LT(states[index_neighbor], vdata.cards[index_neighbor]);
-            CHECK_EQ(vdata.cards[index_neighbor], unary_vertex.data().cards[0]);
+            //CHECK_EQ(vdata.cards[index_neighbor], unary_vertex.data().cards[0]);
             edata.local_messages.setZero();
-            edata.local_messages[states[index_neighbor]] += 1.0; }
-           }
+            edata.local_messages[states[index_neighbor]] += 1.0; 
+          }
         }
+      }
         if ((context.iteration()+1) < opts.maxiter && global_vars.converged == false)
         {
             context.signal(vertex);
@@ -871,7 +869,6 @@ struct dd_vertex_program_projected : public dd_vertex_program {
         }
     }; // end of scatter
 }; // end of class dd_vertex_program_projected
-
 
 
 
@@ -928,22 +925,19 @@ struct admm_vertex_program:public dd_vertex_program {
 
    gather_type gather(icontext_type& context, const vertex_type& vertex, 
                        edge_type& edge) const {
-        //cout << "gather begin" << endl;
         const vertex_type other_vertex = get_other_vertex(edge, vertex);
         const vertex_data& vdata = vertex.data();
         edge_data& edata = edge.data();
-        if (vdata.nvars == 1 ) {  
+        if (vdata.factor_type == VAR ) {  
             // Unary factor.
             if (opts.verbose > 1){
             cout << "This unary factor has " << vertex.num_in_edges() << 
             " in edges and " << vertex.num_out_edges() << " out edges" << endl; 
             }
             gather_type gatherdata(edata.local_messages);
-            //if(vertex.id() == 2 && context.iteration() %2 == 1){
-            //cout<<edata.local_messages;}
             return gatherdata; 
         } 
-        else if(vdata.factor_type ==0){  
+        else if(vdata.factor_type != BUDGET){  
             // Dense factor.
             factor_type messages, neighbor_distribution, multipliers;        
             messages.setZero(vdata.potentials.size());
@@ -976,7 +970,7 @@ struct admm_vertex_program:public dd_vertex_program {
             return gather_data;
         }
             
-        else if(vdata.factor_type ==1) {
+        else if(vdata.factor_type == BUDGET) {
             //Budget factor
             factor_type messages, neighbor_distribution;        
             messages.setZero(vdata.nvars);
@@ -1022,7 +1016,7 @@ struct admm_vertex_program:public dd_vertex_program {
                const gather_type& total) {
         vertex_data& vdata = vertex.data();
      if (!opts.debug){
-        if (vdata.nvars == 1 ) {   
+        if (vdata.factor_type == VAR ) {   
              if (context.iteration()%2 != 0) {
             // Unary factor. 
             //Find dual residual contrib
@@ -1032,7 +1026,7 @@ struct admm_vertex_program:public dd_vertex_program {
                    
                    dual_res_contrib[i] =  (total.messages[i] / static_cast<double>(vdata.unary_degree[i]))
                                                                                 - vdata.beliefs[i] ;
-                   dual_res_contrib[i] = pow(dual_res_contrib[i],2); 
+                   dual_res_contrib[i] = dual_res_contrib[i] * dual_res_contrib[i]; 
             // update global MAP     
                    vdata.beliefs[i] = total.messages[i] / static_cast<double>(vdata.unary_degree[i]);
                 }
@@ -1052,28 +1046,33 @@ struct admm_vertex_program:public dd_vertex_program {
                vec additional_posteriors, variable_posteriors;
                additional_posteriors.setZero(vdata.potentials.size());
                variable_posteriors.setZero(vdata.potentials.size());
-               if(vdata.factor_type == 1){
+               if(vdata.factor_type == BUDGET){
                  additional_posteriors.setZero(vdata.nvars);
                  variable_posteriors.setZero(vdata.nvars); 
                 }
             //Find dual contrib
                 SolveMAP(vertex, total, variable_posteriors, additional_posteriors, vdata.dual_contrib);
             // Find relaxed primal contribution
-                if(vdata.factor_type == 0) {
+                if(vdata.factor_type == DENSE) {
                   vdata.primal_rel_contrib = vdata.potentials.dot(vdata.factor_beliefs);
+                }
+                else if(vdata.factor_type == XOR){
+                  vdata.primal_rel_contrib = vdata.potentials.dot(vdata.beliefs);
                 }
             //Find primal residual contribution
                 vec primal_res_contrib = vdata.beliefs - total.neighbor_distribution;
                 for(int i=0;i< vdata.beliefs.size(); i++){
-                   primal_res_contrib[i] = pow(primal_res_contrib[i],2.0);
+                   primal_res_contrib[i] = primal_res_contrib[i]*primal_res_contrib[i];
                 }
                 vdata.primal_res_contrib = primal_res_contrib.sum();
             // Compute QP subproblem solution
                 compute_beliefs(vertex, total, vdata.beliefs, vdata.factor_beliefs);
+               //cout<<vertex.id()<<" "<<vdata.factor_type<<" "<<vdata.beliefs<<endl;
             //Find primal contrib
-                if(vdata.factor_type == 0){
+                if(vdata.factor_type == DENSE){
                 int conf_index = get_configuration_index(vertex, total.neighbor_conf);
                 vdata.primal_contrib = vdata.potentials[conf_index]; }
+                
             } 
           }
        }
@@ -1105,12 +1104,12 @@ struct admm_vertex_program:public dd_vertex_program {
         const vertex_type other_vertex = get_other_vertex(edge, vertex);
         if (!opts.debug){
          // Unary factor. Update the messages (Lagrange multipliers).   
-            if (vdata.nvars == 1 ){ 
+            if (vdata.factor_type == VAR ){ 
                 if (context.iteration()%2 != 0) {
            
                     double stepsize = update_stepsize(context, 0 , global_vars.old_dual, global_vars.primal_best, 
                                                        global_vars.sq_norm_g, global_vars.dual_inc_count, 0);
-                    if(other_vertex.data().factor_type == 1){
+                    if(other_vertex.data().factor_type == BUDGET){
                        int index_neighbor = -1;
                        for(int i=0; i < other_vertex.data().nvars; i++) {
                            if(other_vertex.data().neighbors[i] == vertex.id()){
@@ -1121,12 +1120,12 @@ struct admm_vertex_program:public dd_vertex_program {
                       edata.multiplier_messages[0] +=(vdata.beliefs[other_vertex.data().bound_states[index_neighbor]]
                          - edata.local_messages[other_vertex.data().bound_states[index_neighbor]]) * stepsize;
                      }
-                     else if(other_vertex.data().factor_type == 0){
+                     else if(other_vertex.data().factor_type != BUDGET){
                             edata.multiplier_messages += (vdata.beliefs - edata.local_messages) * stepsize; 
                      } 
                 }    
              } 
-             else if(vdata.factor_type == 0){   
+             else if(vdata.factor_type != BUDGET){   
                      if (context.iteration()%2 == 0) {
             //General factor. Update the local MAPs.
                         const vertex_type &unary_vertex = get_other_vertex(edge, vertex);
@@ -1141,14 +1140,14 @@ struct admm_vertex_program:public dd_vertex_program {
                             offset += vdata.cards[k];
                         }
                         CHECK_GE(index_neighbor, 0);
-                        CHECK_EQ(vdata.cards[index_neighbor], unary_vertex.data().cards[0]);
+                        //CHECK_EQ(vdata.cards[index_neighbor], unary_vertex.data().cards[0]);
             
                         for(int state = 0; state < vdata.cards[index_neighbor]; state++){
                            edata.local_messages[state] = vdata.beliefs[offset+state];
                         }
                    } 
               }
-              else if(vdata.factor_type == 1){ 
+              else if(vdata.factor_type == BUDGET){ 
                // Budget factor. Update local MAPs
                       if (context.iteration()%2 == 0) {
                          const vertex_type &unary_vertex = get_other_vertex(edge, vertex);
@@ -1174,9 +1173,6 @@ struct admm_vertex_program:public dd_vertex_program {
     
  }; /* end of admm_vertex_program */
  
- 
-
-
 /////////////////////////////////////////////////////////////////////////////////
 //Aggregator functions to compute primal & dual objectives and residuals
 
@@ -1195,8 +1191,9 @@ objective sum(dd_vertex_program::icontext_type& context, const dd_vertex_program
   return retval;
 }
 
-void print_obj(dd_vertex_program::icontext_type& context, objective total) {   
+void print_obj(dd_vertex_program::icontext_type& context, objective total) {   //TODO make this function part of dd_vertex_program class
       if (context.iteration() % 2 == 0 || opts.algorithm == 0) { 
+        //saving best values
          if (total.dual > global_vars.old_dual){
              global_vars.dual_inc_count ++;
          }
@@ -1209,23 +1206,23 @@ void print_obj(dd_vertex_program::icontext_type& context, objective total) {
             cout<<"iteration: "<<context.iteration()<<" Dual Objective: " << total.dual<<
                    " "<<"Primal Objective: "<<total.primal<<endl;
             cout<< "Best Primal so far: "  << global_vars.primal_best<<" "<<endl;   
-      
+        //residuals only available in case of ad3
             if(opts.algorithm == 2) { 
               cout<<"Relaxed Primal Objective:"<<total.primal_rel<<endl;
               cout<<"Dual Residual:"<< sqrt(total.dual_res/total.total_confs)<<" "
               <<"Primal Residual:"<<sqrt(total.primal_res/total.total_confs)<<endl;
             }
         }
-     
+        //convergence criteria for dd, bethe admm 
         if ((std::fabs(total.dual-global_vars.old_dual) < opts.dualimprovthres) && opts.algorithm != 2) { 
-           global_vars.converged = true;
+            global_vars.converged = true;
            cout<< "Dual Objective: " << total.dual<< " "<<"Primal Objective: "<<total.primal<<endl;
            cout<<" Number of iteration at convergence:"<<context.iteration() +2 <<endl;
         }
-        
+        //convergence criteria for ad3
         if((sqrt(total.dual_res/total.total_confs) < opts.dualimprovthres
              && sqrt(total.primal_res/total.total_confs) < opts.dualimprovthres)
-      &&(std::fabs(total.dual-global_vars.old_dual) < opts.dualimprovthres)&& opts.algorithm == 2){ 
+      && (std::fabs(total.dual-global_vars.old_dual) < opts.dualimprovthres) && opts.algorithm == 2){ 
            global_vars.converged = true;
            cout<< "Dual Objective: " << total.dual<< " "<<"Primal Objective: "<<total.primal<<endl;
            cout<<" Number of iteration at convergence:"<<context.iteration() +2 <<endl;       
@@ -1233,7 +1230,7 @@ void print_obj(dd_vertex_program::icontext_type& context, objective total) {
        
         global_vars.old_dual = total.dual;
         global_vars.sq_norm_g = total.sum_sq_norm_g;
-    
+       //saving history    
         if (opts.history_file != "\0"){
             global_vars.history[0].push_back(context.iteration()+2);
             global_vars.history[1].push_back(global_vars.timer.current_time());
