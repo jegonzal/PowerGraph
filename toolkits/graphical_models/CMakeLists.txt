@@ -4,6 +4,9 @@ project(GraphicalModels)
 add_graphlab_executable(dd dd_main.cpp)
 requires_eigen(dd)
 
+add_graphlab_executable(dd_exp dd_exp.cpp)
+requires_eigen(dd_exp)
+
 add_graphlab_executable(lbp_structured_prediction lbp_structured_prediction.cpp)
 requires_eigen(lbp_structured_prediction)
 
@@ -17,7 +20,6 @@ requires_eigen(profile_lbp_synthetic2)
 
 add_graphlab_executable(synthetic_image_data synthetic_image_data.cpp)
 requires_opencv(synthetic_image_data)
-
 
 
 

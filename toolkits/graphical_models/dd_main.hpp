@@ -268,7 +268,10 @@ bool line_parser(graph_type& graph, const std::string& filename, const std::stri
     }
    else if(type == "d" || type == "u") {
      vdata.factor_type = (type=="d")?DENSE:XOR;
+     if(vdata.factor_type == DENSE)
      strm>>vdata.nvars;
+     else 
+     vdata.nvars = 1;
      strm>>vid;
      vdata.neighbors.resize(vdata.nvars);
      vdata.cards.resize(vdata.nvars);
@@ -388,8 +391,9 @@ gather_potentials gather(icontext_type& context, const vertex_type& vertex, edge
           potentials.setZero();
           switch(other_vertex.data().factor_type){
           case XOR : potentials = other_vertex.data().potentials;
-                     cout<<potentials;
+       
           case DENSE : degree.resize(vdata.potentials.size(),1);
+       
                        break;
           
           case BUDGET : degree.resize(vdata.potentials.size(), 0);
@@ -400,12 +404,14 @@ gather_potentials gather(icontext_type& context, const vertex_type& vertex, edge
                                break;
                               }
                         }
+       
                        degree[other_vertex.data().bound_states[index_neighbor]] = 1;
           }
        }
        else {
          degree.resize(1);
          potentials.resize(1);
+       
        }   
        gather_potentials gather_data;
        gather_data.degree  = degree;
@@ -417,11 +423,9 @@ void apply(icontext_type& context, vertex_type& vertex, const gather_potentials&
      { vertex_data& vdata =  vertex.data();
        if(vdata.factor_type == VAR) {
           vdata.unary_degree = total.degree;
-          for(int i=0; i<vdata.unary_degree.size(); i++)
-           cout<<vdata.unary_degree[i]<<" ";
           vdata.potentials = total.potentials;
-          cout<<vdata.potentials<<endl;
-         }       
+         } 
+    
       };
 
 edge_dir_type scatter_edges(icontext_type& context,
@@ -449,7 +453,8 @@ void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge)
                int state_index = other_vertex.data().bound_states[index_neighbor];
                edge.data().potentials[state_index]  = vdata.potentials[state_index]/vdata.unary_degree[state_index];
               }
-            }            
+            }  
+           cout<<"complete scatter"<<endl;          
        };
 };
 
@@ -460,7 +465,7 @@ class graph_writer {
 public:
 std::string save_vertex(graph_type::vertex_type v) {
 std::stringstream strm;
-if(v.data().nvars == 1)
+if(v.data().factor_type == VAR)
 strm << v.id() << "\t" << v.data().best_configuration<< "\n";
 return strm.str();
  }
