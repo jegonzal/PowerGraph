@@ -160,7 +160,15 @@ namespace graphlab {
    */
   size_t thread::cpu_count() {
 #if defined __linux__
+  char* jobsStr = getenv("GRAPHLAB_THREADS_PER_WORKER");
+  if (jobsStr) {
+    int nThreads = atoi(jobsStr);
+    if ( nThreads < 2 ) return 2;
+     else return nThreads;
+  }
+  else {
     return sysconf(_SC_NPROCESSORS_CONF);
+  }
 #elif defined(__MACH__) && defined(_SC_NPROCESSORS_ONLN)
     return sysconf (_SC_NPROCESSORS_ONLN);
 #elif defined(__MACH__) && defined(HW_NCPU)

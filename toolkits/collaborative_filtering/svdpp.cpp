@@ -733,6 +733,9 @@ int main(int argc, char** argv) {
   dc.cout() << "Finalizing graph. Finished in " 
     << timer.current_time() << std::endl;
 
+  if (!graph.num_edges() || !graph.num_vertices())
+     logstream(LOG_FATAL)<< "Failed to load graph. Check your input path: " << input_dir << std::endl;     
+
 
   dc.cout() 
     << "========== Graph statistics on proc " << dc.procid() 
@@ -773,7 +776,7 @@ int main(int argc, char** argv) {
 
 
   // Run the PageRank ---------------------------------------------------------
-  dc.cout() << "Running Bias-SGD" << std::endl;
+  dc.cout() << "Running SVD++" << std::endl;
   dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
   dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
   dc.cout() << "Time   Training    Validation" <<std::endl;

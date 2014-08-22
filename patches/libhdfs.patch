@@ -37,4 +37,16 @@ diff -rupN hadoop-1.0.1_old/src/c++/libhdfs/configure.ac hadoop-1.0.1/src/c++/li
    AC_MSG_RESULT([VALUE OF JVM_ARCH IS :$JVM_ARCH])
  fi
  
+diff -rupN hadoop-1.0.1_old/src/c++/libhdfs/hdfs.c hadoop-1.0.1/src/c++/libhdfs/hdfs.c
+--- hadoop-1.0.1_old/src/c++/libhdfs/hdfs.c
++++ hadoop-1.0.1/src/c++/libhdfs/hdfs.c
+@@ -252,7 +252,7 @@ hdfsFS hdfsConnectAsUser(const char* host, tPort port, const char *user)
+       cURI = malloc(strlen(host)+16);
+       sprintf(cURI, "hdfs://%s:%d", host, (int)(port));
+       if (cURI == NULL) {
+-        fprintf (stderr, "Couldn't allocate an object of size %d",
++        fprintf (stderr, "Couldn't allocate an object of size %zu",
+                  strlen(host) + 16);
+         errno = EINTERNAL;            
+         goto done;    
 
