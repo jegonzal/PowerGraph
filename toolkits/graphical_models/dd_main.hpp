@@ -454,7 +454,7 @@ void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge)
                edge.data().potentials[state_index]  = vdata.potentials[state_index]/vdata.unary_degree[state_index];
               }
             }  
-           cout<<"complete scatter"<<endl;          
+           //cout<<"complete scatter"<<endl;          
        };
 };
 
