@@ -1,0 +1,829 @@
+/**
+
+\page graph_analytics Graph Analytics 
+
+\brief The graph analytics toolkit contains applications for performing graph 
+analytics and extracting patterns from the graph structure mostly from the Social Network Analysis Toolkit
+
+The toolkit current contains:
+ - \ref djikstra "Djisktra Algorithm Base"
+ - \ref betweeness "Betweeness Algorithm"
+ - \ref closeness "Closeness Algorithm"
+ - \ref prestige "Prestge Algoritm"
+
+All toolkits take any of the graph formats described in \ref graph_formats . 
+
+
+\section djikstra "Djikstra Algorithm Base"
+
+The input format for the djikstra algorithm is
+
+\verbatim
+<long node_id> [<long node_id> <float edge_value>]*
+\endverbatim
+
+The output format of the djikstra algorithm is
+
+\verbatim
+<long node_id> [<long root_of_spanning_tree_id> <long next_node_higher_in_spanning_tree>]*
+\endverbatim
+
+roots do not list themselves
+
+Run this command with:
+
+\verbatim
+mpiexec -n <N machines> --hostfile <hostfile> ./djikstra --graph <graph location> [--saveprefix <prefix to attach to output>] 
+\endverbatim
+
+The output describes the spanning trees constructed starting at up to 3000 nodes
+
+\subsection djikstra_imp "Djikstra Algorithm Details"
+
+Djikstra starts with a randomly selected (~3000) set of nodes using a constant time and space random process.  Each gather collects the earlier spanning tree members.  The apply step calculates the best path, storing it. The scatter step notifies all nodes other than nodes that have notifid it to execute now. This process runs concurrently for each starting node.  
+
+Note: this algorithm does not preserve correctness of the total cost at each node, only relative stregth between node choices. Re-walk the spanning tree to calculate this (see below for examples).
+
+\section betweeness "Betweeness Algorithms"
+
+The input format for the betweeness algorithm is:
+
+\verbatim
+<long node_id> [<long node_id> <float edge_value>]*
+\endverbatim
+
+The output format of the betweeness algorithm is
+
+\verbatim
+<long node_id> <float betweeness score>
+\endverbatim
+
+Run this command with:
+
+\verbatim
+mpiexec -n <N machines> --hostfile <hostfile> ./betweeness --graph <graph location> [--saveprefix <prefix to attach to output>] 
+\endverbatim
+
+The output estimates betweeness using ~3000 randomly selected spanning trees (typically +/-3% accuracy in the measure for each node.)
+
+\subsection betweeness_imp "Betweeness Algorithm Details"
+
+Djikstra sanning trees are calculated first, then the datsa structure is reset, then betweeness scores are calculated by walking the spanning trees from leaves to roots. Finally, the betweeness scores are collated from the various samples of spanning trees.
+
+See \ref djiksra_imp for details on how spanning trees are calculated.
+
+The next step resets all the bookkeeping on the spanning trees and sets costs to zero.
+
+Finally, the betweeness is calculated.  All nodes are started at first, but only nodes without another spanning tree node pointing to it have a non-null execution.  
+
+The gather step checks if all nodes in the spanning tree pointing to it have been calculated yet, silently skipping if this is not true.  Otherwise, the betweeness scores are collected.
+
+The apply step sums the betweeness score for this node and spanning tree.
+
+The scatter step signals the next higher node in this spanning tree that a new betweeness score is ready.
+
+When the graph is saved, it outputs the sum of all betweeness scores across all calculated spanning trees and estimates the expected final betweeness score.
+
+\section closeness "Closeness Algorithm"
+
+The input format for the closeness algorithm is:
+
+\verbatim
+<long node_id> [<long node_id> <float edge_value>]*
+\endverbatim
+
+The output format of the betweeness algorithm is
+
+\verbatim
+<long node_id> <float closeness score>
+\endverbatim
+
+Run this command with:
+
+\verbatim
+mpiexec -n <N machines> --hostfile <hostfile> ./closeness --graph <graph location> [--saveprefix <prefix to attach to output>] 
+\endverbatim
+
+The output estimates closeness using ~3000 randomly selected spanning trees (typically +/-3% accuracy in the measure for each node.)
+
+\subsection closeness_imp "Closeness Algorithm Details"
+
+Djikstra spanning trees are calculated first, then the datsa structure is reset, then closeness scores are calculated by walking the spanning trees from leaves to roots. Finally, the closeness scores are collated from the various samples of spanning trees.
+
+See \ref djiksra_imp for details on how spanning trees are calculated, except the link direction is reversed.
+
+The next step resets all the bookkeeping on the spanning trees and sets costs to zero.
+
+Finally, the closeness is calculated.  The starting node set is reused, and the spanning trees are all walked simultaneously from root to leaves.
+
+The gather step collects the parent closeness score.
+
+The apply step combines the parent's closeness score with the edge value and stores it.
+
+The scatter step signals al child nodes.
+
+When the graph is saved, it outputs the sum of all closeness scores across all calculated spanning trees and estimates the expected final closeness score.
+
+
+
+\section prestige "Prestige Algorithm" 
+
+The input format for the prestige algorithm is:
+
+\verbatim
+<long node_id> [<long node_id> <float edge_value>]*
+\endverbatim
+
+The output format of the betweeness algorithm is
+
+\verbatim
+<long node_id> <float prestige score>
+\endverbatim
+
+Run this command with:
+
+\verbatim
+mpiexec -n <N machines> --hostfile <hostfile> ./prestige --graph <graph location> [--saveprefix <prefix to attach to output>] 
+\endverbatim
+
+The output estimates prestige using ~3000 randomly selected spanning trees (typically +/-3% accuracy in the measure for each node.)
+
+
+\subsection prestige_imp "Prestige Algorithm Details"
+
+Djikstra spanning trees are calculated first, then the datsa structure is reset, then prestige scores are calculated by walking the spanning trees from leaves to roots. Finally, the prestige scores are collated from the various samples of spanning trees.
+
+See \ref djiksra_imp for details on how spanning trees are calculated.
+
+The next step resets all the bookkeeping on the spanning trees and sets costs to zero.
+
+Finally, the prestige is calculated.  The starting node set is reused, and the spanning trees are all walked simultaneously from root to leaves.
+
+The gather step collects the parent prestige score.
+
+The apply step combines the parent's prestige score with the edge value and stores it.
+
+The scatter step signals al child nodes.
+
+When the graph is saved, it outputs the sum of all prestige scores across all calculated spanning trees and estimates the expected final prestige score.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section graph_analytics_pagerank PageRank 
+
+The PageRank program computes the pagerank of each vertex. 
+See the <a href="http://en.wikipedia.org/wiki/PageRank">Wikipedia article</a>
+for details of the algorithm.
+
+\subsection Input Graph
+The input to the system is a graph in any of the Portable graph format
+described in \ref graph_formats. 
+
+\verbatim
+> ./pagerank --graph=[graph prefix] --format=[format] 
+\endverbatim
+
+Alternatively, a synthetic power law graph of an arbitrary number of vertices
+can be generated using:
+\verbatim
+> ./pagerank --powerlaw=[nvertices]
+\endverbatim
+The resultant graph will have powerlaw out-degree, and nearly constant in-degree. 
+The actual generation process draws vertex degree from a truncated power-law
+distribution with alpha=2.1. The distribution is truncated at maximum out-degree
+100M to avoid allocating massive amounts of memory for creating the sampling distribution.
+
+\subsection Computation Type 
+There are several modes of computation that are supported. All will eventually
+obtain the same solutions. 
+
+### Classical
+To get classical PageRank iterations, adding the option
+\verbatim
+> --iterations=[N Iterations]
+\endverbatim
+
+### Dynamic Synchronous (default) 
+The dynamic synchronous computation only performs computation on vertices
+that have not yet converged to the desired tolerance. The default tolerance
+is 0.001. This can be modified by adding the option
+\verbatim
+>  --tol=[tolerance]
+\endverbatim
+
+### Dynamic Asynchronous
+The dynamic asynchronous computation only performs computation on vertices
+that have not yet converged to the desired tolerance. This uses the 
+asynchronous engine. The default tolerance is 0.001. 
+This can be modified by adding the option
+\verbatim
+>  --tol=[tolerance]
+\endverbatim
+
+\note This is known to be slow! PageRank does not benefit from the consistency
+guaranteed by the asynchronous engine. A new engine is in development with 
+weaker consistency semantics, but sufficient for pagerank. 
+
+
+\subsection Output
+To save the resultant pagerank of each vertex, include the option
+\verbatim
+> --saveprefix=[output prefix]
+\endverbatim
+
+Tne <tt>output prefix</tt> is where the output counts will be written. This
+may be located on HDFS. For instance, if the <tt>output_prefix</tt> is <tt>"v_out"</tt>,
+the output files will be written to:
+
+\verbatim
+v_out_1_of_16
+v_out_2_of_16
+...
+v_out_16_of_16
+\endverbatim
+
+Each line in the output file contains two numbers: a Vertex ID, and the 
+computed PageRank. Note that the output vector is NOT normalized, namely 
+computed entries do not sum into one. 
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./pagerank ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
+
+
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Optional). The prefix from which to load the graph data
+\li \b --format (Optional). The format of the input graph 
+\li \b --powerlaw (Optional. Default 0). If set, generates synthetic powerlaw graph with
+                        the specified number of vertices.
+\li \b --saveprefix (Optional. Default ""). If set, will write the output counts.
+\li \b --tol (Optional. Default=1E-3). Changes the convergence tolerance for the Dynamic
+                          computation modes.
+\li \b --iterations (Optional. Default 0). If set, runs classical PageRank iterations
+                      for the specified number of iterations.
+\li \b -–graph_opts (Optional, Default empty) Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+for computation.  
+\li \b -–engine (Optional, Default "synchronous") Sets the engine type. Must be
+                  either "synchronous" or "asynchronous"
+\li \b -–engine (Optional, Default "synchronous") Sets the engine options. Available
+                  options depend on the engine type. See
+                  graphlab::async_consistent_engine and
+                  graphlab::synchronous_engine for details.
+
+
+
+
+\section graph_analytics_kcore KCore Decomposition 
+This program iteratively finds the KCore of the network.
+
+\subsection Input Graph
+The input to the system is a graph in any of the Portable graph format
+described in \ref graph_formats. 
+
+\verbatim
+> ./kcore --graph=[graph prefix] --format=[format] 
+\endverbatim
+Output may look like:
+\verbatim
+K=0:  #V = 875713   #E = 4322051
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 0
+K=1:  #V = 875713   #E = 4322051
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 153407
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=2:  #V = 711870   #E = 4160100
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 108715
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=3:  #V = 581712   #E = 3915291
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 69907
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=4:  #V = 492655   #E = 3668104
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 52123
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=5:  #V = 424155   #E = 3416251
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 41269
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=6:  #V = 367361   #E = 3158776
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 33444
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=7:  #V = 319194   #E = 2902138
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 29201
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=8:  #V = 274457   #E = 2629033
+......
+\endverbatim
+
+To just get the informative lines:
+\verbatim
+> ./kcore --graph=[graph prefix] --format=[format] > k_out.txt
+  ...
+> cat k_out.txt
+Computes a k-core decomposition of a graph.
+
+Number of vertices: 875713
+Number of edges:    4322051
+K=0:  #V = 875713   #E = 4322051
+K=1:  #V = 875713   #E = 4322051
+K=2:  #V = 711870   #E = 4160100
+K=3:  #V = 581712   #E = 3915291
+K=4:  #V = 492655   #E = 3668104
+K=5:  #V = 424155   #E = 3416251
+K=6:  #V = 367361   #E = 3158776
+K=7:  #V = 319194   #E = 2902138
+K=8:  #V = 274457   #E = 2629033
+K=9:  #V = 231775   #E = 2335154
+K=10:  #V = 193406   #E = 2040738
+K=11:  #V = 159020   #E = 1753273
+K=12:  #V = 131362   #E = 1500517
+K=13:  #V = 106572   #E = 1256952
+K=14:  #V = 86302   #E = 1047053
+K=15:  #V = 68409   #E = 849471
+K=16:  #V = 53459   #E = 676076
+K=17:  #V = 40488   #E = 519077
+...
+\endverbatim
+
+
+The program can also save a copy of the graph at each stage by adding an
+option.
+\verbatim
+> --savecores=[prefix]
+\endverbatim
+
+The resultant graphs will be saved with prefixes [prefix].K
+For instance if prefix is <tt>out</tt>, 
+The 0-Core graph may be saved in 
+\verbatim
+out.0.1_of_4
+out.0.2_of_4
+out.0.3_of_4
+out.0.4_of_4
+\endverbatim
+
+The 5-Core graph will be saved in 
+\verbatim
+out.5.1_of_4
+out.5.2_of_4
+out.5.3_of_4
+out.5.4_of_4
+\endverbatim
+
+and so on. 
+
+The range of k-Core graphs to compute can be controlled by the <tt>kmin</tt>
+and the <tt>kmax</tt> option described below.
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./kcore....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
+
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+for computation.  
+\li \b --savecores (Optional. Default ""). The target prefix to save 
+the resultant K-core graphs.
+\li \b --kmin (Optional. Default 0). Only output result for the K-core graph starting
+                        at K=kmin
+\li \b --kmax (Optional. Default Inf). Only output result for the K-core graph 
+                        up to K=kmax
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section graph_analytics_triangle_coloring Graph Coloring 
+
+The graph coloring program implements a really simple graph coloring 
+procedure: each vertex reads the colors of its neighbors and takes on 
+the smallest possible color which does not conflict with its neighbors.
+
+The procedure necessarily uses the asynchronous engine (it will never
+converge with the synchronous engine).
+
+The input to the system is a graph in any of the Portable graph format
+described in \ref graph_formats. It is important that the input be "cleaned"
+and that reverse edges are removed: i.e. if edge 1-->5 exists, edge 5-->1 should
+not exist. (The program will run without these edge removed. But numbers
+may be erroneous).
+
+To color a graph, the minimal set of options required are:
+\verbatim
+> ./simple_coloring --graph=[graph prefix] --format=[format] --output=[output prefix]
+\endverbatim
+Output looks like:
+\verbatim
+Number of vertices: 875713
+Number of edges:    5105039
+Coloring...
+Completed Tasks: 875713
+Issued Tasks: 875713
+Blocked Issues: 0
+------------------
+Joined Tasks: 0
+Colored in 42.3684 seconds
+Metrics server stopping.
+\endverbatim
+
+Observe that the number of Completed Tasks is identical to the number of vertices.
+This is a result of the consistency model which ensures that the entire
+vertex update is peformed "atomically".
+
+Tne <tt>output prefix</tt> is where the output counts will be written. This
+may be located on HDFS. For instance, if the <tt>output_prefix</tt> is <tt>"v_out"</tt>,
+the output files will be written to:
+
+\verbatim
+v_out_1_of_16
+v_out_2_of_16
+...
+v_out_16_of_16
+\endverbatim
+
+Each line in the output file contains two numbers: a Vertex ID, and the number
+color of the vertex.
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./simple_coloring ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
+
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+for computation.  
+\li \b –-graph_opts (Optional, Default empty) Any additional graph options. See
+  --graph_help a list of options.
+\li \b –-engine_opts (Optional, Default empty) Any additional engine options. See
+  --engine_help a list of options.
+
+A particularly relevant option is 
+\verbatim
+--engine_opts="factorized=true"
+\endverbatim
+
+This uses a weaker consistency setting which only guarantees that individual
+"gather/apply/scatter" operations are atomic, but does not guarantee atomicity
+of the entire update. As a result, this may require more updates to complete,
+but could in practice run significantly faster.
+
+
+
+
+
+
+
+
+
+
+\section graph_analytics_connected_component Connected Component
+
+The connected component program can find all connected components in a 
+graph, and can also count the number of vertices (size) of each connected 
+component.
+
+The input to the system is a graph in any of the Portable Graph formats
+described in \ref graph_formats.
+
+To find connected components in a graph, the minimal set of options
+required are:
+\verbatim
+> ./connected_component --graph=[graph prefix] --format=[format]
+\endverbatim
+
+Here is a toy example, graph with 6 nodes and 5 edges:
+\verbatim
+# example graph
+# vertices: 6 edges: 5
+1 2
+2 3
+4 5
+4 6
+5 6
+\endverbatim
+
+Assume file name is toy_graph, the command used for running connected compnents is
+\verbatim
+> ./connected_component --graph=toy_graph --format=tsv --saveprefix=out
+\endverbatim
+
+
+When you set <tt>--saveprefix=output_prefix</tt>, the pairs of a Vertex ID and a 
+Component ID will be written to a sequence of files with prefix 
+<tt>output_prefix</tt>. This may be located on HDFS. For instance, if the 
+<tt>output_prefix</tt> is <tt>"v_out"</tt>, the output files will be written to:
+
+\verbatim
+out_1_of_4
+out_2_of_4
+out_3_of_4
+out_4_of_4
+\endverbatim
+
+Let's examine the output. The first column is the node id, while the second column is it's assigned component number
+(which is also the lowest node id in this component). In our case:
+\verbatim
+1,1
+2,1
+3,1
+4,4
+5,4
+6,4
+\endverbatim
+
+There are two components. The first compoent is 1,2,3 and the second component is 4,5,6 
+
+Note that this program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./connected_component ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --saveprefix (Optional). If set, pairs of a Vertex ID and a Component 
+ID will be saved to a sequence of files with the given prefix.
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used
+for computation.
+\li \b --graph_opts (Optional, Default empty). Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+  
+connected_components_stats is a helper utility, which computes histogram of component 
+sizes. 
+
+Using our toy example
+\verbatim
+> ./connected_component_stats --graph=out
+Connected Component
+
+INFO:     mpi_tools.hpp(init:63): MPI Support was not compiled.
+INFO:     dc.cpp(init:573): Cluster of 1 instances created.
+INFO:     distributed_graph.hpp(set_ingress_method:3200): Automatically determine ingress method: grid
+Loading graph in format: adj
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_1_of_4
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_2_of_4
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_3_of_4
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_4_of_4
+INFO:     distributed_ingress_base.hpp(finalize:185): Finalizing Graph...
+INFO:     distributed_ingress_base.hpp(exchange_global_info:519): Graph info:
+	 nverts: 2
+	 nedges: 0
+	 nreplicas: 2
+	 replication factor: 1
+Complete Finalization in 0.001965
+graph calculation time is 2.4e-05 sec
+RESULT:
+size	count
+3	2
+\endverbatim
+
+As expected, there are two components of size 3.
+
+
+
+\section graph_analytics_approximate_diameter Approximate Diameter
+
+The approximate diameter program can estimate a diameter of a graph. 
+The implemented algorithm is based on the work, 
+
+U Kang, Charalampos Tsourakakis, Ana Paula Appel, Christos Faloutsos and Jure Leskovec, 
+HADI: Fast Diameter Estimation and Mining in Massive Graphs with Hadoop (2008).
+
+The input to the system is a graph in any of the Portable Graph formats
+described in \ref graph_formats.
+
+To compute an approximate diameter of a graph, the minimal set of options
+required are:
+\verbatim
+> ./approximate_diameter --graph=[graph prefix] --format=[format]
+\endverbatim
+Output looks like:
+\verbatim
+Approximate graph diameter
+INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 1271950
+INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
+1-th hop: 12895307 vertex pairs are reached
+INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 1271950
+INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
+2-th hop: 319726269 vertex pairs are reached
+INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 1271950
+INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
+3-th hop: 319769151 vertex pairs are reached
+converge
+graph calculation time is 40 sec
+approximate diameter is 2
+\endverbatim
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./approximate_diameter ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --tol (Optional. Default=1E-4). Changes the convergence tolerance for 
+the number of reached vertex pairs at each hop.
+\li \b --use-sketch (Optional. Default=1). If true, will use Flajolet & Martin 
+bitmask to approximately count numbers of reached vertex pairs, and will require a 
+smaller memory. If false, will count exact numbers of reached vertex pairs. But 
+this will need a huge memory and be slow.
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used
+for computation.  
+\li \b --graph_opts (Optional, Default empty). Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+
+
+
+
+
+
+
+
+\section graph_analytics_partitioning Graph Partitioning 
+
+This program can partition a graph by using normalized cut.
+
+The input to the system is a graph in any of the Portable Graph formats
+described in \ref graph_formats.
+You can also give weights to edges with the <tt>weight</tt> format.
+For instance in this <tt>weight</tt> format file, there are 5 edges:
+
+\verbatim
+1 2 4.0
+2 3 1.0
+3 4 5.0
+4 5 2.0
+5 3 3.0
+\endverbatim
+
+To partition a graph, the minimal set of options required are:
+
+\verbatim
+> ./partitioning --graph=[graph prefix] --format=[format]
+\endverbatim
+
+This program uses svd in Graphlab Collaborative Filtering Toolkit and 
+kmeans in Graphlab Clustering Toolkit. The paths to the directories are 
+specified by <tt>--svd-dir</tt> and <tt>--kmeans-dir</tt>, respectively.
+
+The program will create some intermediate files. The final partitioning
+result is written in files named <tt>[graph prefix].result</tt> with suffix,
+for example <tt>[graph prefix].result_1_of_4</tt>. The partitioning result 
+data consists of two columns: one for the ids and the other for the 
+assigned partitions. For instance:
+
+\verbatim
+1 0
+2 0
+3 1
+4 1
+5 1
+\endverbatim
+
+<b>NOTE:</b> To run this program in a distributed setting, you must use the 
+"mpi-args" option, not like other graphlab toolkits. 
+The graph partitioning calls other graphlab programs.
+When "--mpi-args" is set, these graphlab programs are called with "mpiexec" and the 
+string written after the "mpi-args" option.
+For example, if you set --mpi-args="-n 4 --hostfile host", the program calls the 
+other graphlab programs with "mpiexec -n 4 --hostfile host".
+
+\subsection Options
+Relevant options are:
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph. If "weight" is 
+set, the program will read the data file where each line holds [id1] [id2] 
+[weight].
+\li \b --partitions (Optional. Default 2). The number of partitions
+\li \b --svd-dir (Optional. Default ../collaborative_filtering/).
+Path to the directory where Graphlab svd is located
+\li \b --kmeans-dir (Optional. Default ../clustering/). Path to the directory where 
+Graphlab kmeans is located
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used 
+for computation.
+\li \b --graph_opts (Optional, Default empty). Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+\li \b --mpi-args (Optional, Default empty). If set, will execute mipexec with the given string.
+  
+  
+\section graph_analytics_total_subgraph_centrality "Total Subgraph Centrality"
+Total subgraph centrality was implemented by Jacob Kesinger, see additional
+details in his <a href="http://jacobkesinger.tumblr.com/post/64338572799/total-subgraph-centrality">blog post</a>.
+Total Subgraph Communicability is a new centrality measure due to
+Benzi&Klymco [1].   For a directed graph with adjacenty matrix A, 
+
+\verbatim
+TSC_i = sum_j exp(A)_{ij} = (exp(A)*1)_i.
+\endverbatim
+
+This code calculates the TSC using an Arnoldi iteration on the Krylov
+subspace {b, Ab,A*Ab, A*A*Ab, ...}  due to Saad[1], and using the new
+warp engine from Graphlab 2.2 (without which this would have been, at
+best, very challenging).
+
+Small components of large graphs will have bogus answers due to
+floating point issues.  To find the exact TSC for a particular node i,
+run with "--column i" to find exp(A)*e_i; you will have to sum the
+resulting output yourself, however.
+
+
+SAMPLE INPUT:
+\verbatim
+0	1
+1	2
+1	3
+2	4
+3	4
+1	0
+2	1
+3	1
+4	2
+4	3
+\endverbatim
+
+OUTPUT:
+\verbatim
+0 5.17784
+1 10.3319
+2 8.49789
+3 8.49789
+4 7.96807
+\endverbatim
+
+You can verify this in python as:
+\verbatim
+import scipy
+import scipy.linalg
+A = scipy.array([[0,1,0,0,0],[1,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]])
+scipy.linalg.expm2(A).sum(axis=1)
+\endverbatim
+
+[1]: Benzi, Michele, and Christine Klymko. Total Communicability as a Centrality Measure. ArXiv e-print, February 27, 2013. <a href="http://arxiv.org/abs/1302.6770">arxiv</a>
+
+[2]: Saad, Yousef. “Analysis of Some Krylov Subspace Approximations to the Matrix Exponential Operator.” SIAM Journal on Numerical Analysis 29, no. 1 (1992): 209–228.
+*/
