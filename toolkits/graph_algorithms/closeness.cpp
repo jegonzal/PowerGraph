@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014 Daniel McEnnis.
+ * portions of main Copyright (c) 2009 Carnegie Mellon
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -163,7 +164,6 @@ public:
     }
 };
 
-// The vertex data is its label
 typedef PrestigeAnalysisNode vertex_data_type;
 
 typedef GatherMultiTree gather_type;
@@ -339,12 +339,15 @@ class DjikstraAlgorithm :
   }
 };
 
+size_t num_vertices = 3000;
+size_t desired_sample_size = 3000;
+size_t selected_sample_size = 0;
 
 /*
  * For every node, print the previous node in its spanning tree for all spanning trees this node is in.
  *
  */
-struct djikstra_writer {
+struct closeness_writer {
   std::string save_vertex(graph_type::vertex_type v) {
     std::stringstream strm;
     strm << v.id() << "\t";
@@ -353,22 +356,22 @@ struct djikstra_writer {
         iter != v.data().djikstra_pieces.end();++iter){
         value += iter->second.cost;
     }
+    value /= selected_sample_size;
     strm << value << std::endl;
     return strm.str();
   }
   std::string save_edge (graph_type::edge_type e) { return ""; }
 };
 
-size_t num_vertices = 3000;
-
 /*
  * Select ~3000 root nodes or an exact count which gives up around +/-3% accuracy
  * in prestige measures. It is a constant memory random selector.
  */
 bool selectVertices(const graph_type::vertex_type& vertex){
-    float r = ((float)random()) / ((float)RAND_MAX);
+    unsigned int r = random();
     std::cout << "Random seed is " << r << std::endl;
-    if(r < (3000.0 / num_vertices)){
+    if(r < (desired_sample_size * RAND_MAX / num_vertices)){
+          selected_sample_size++;
           return true;
     }
     return false;
@@ -503,16 +506,15 @@ int main (int argc, char** argv){
     global_logger().set_log_level(LOG_INFO);
 
     // Parse command line options -----------------------------------------------
-    graphlab::command_line_options clopts("Label Propagation algorithm.");
+    graphlab::command_line_options clopts("Closeness Algorithm");
     std::string graph_dir;
-    std::string execution_type = "synchronous";
     clopts.attach_option("graph", graph_dir, "The graph file. Required ");
     clopts.add_positional("graph");
-    clopts.attach_option("execution", execution_type, "Execution type (synchronous or asynchronous)");
+    clopts.attach_option("samplesize", desired_sample_size , "(Sample size) the number of spanning trees to calculate");
 
     std::string saveprefix;
     clopts.attach_option("saveprefix", saveprefix,
-                         "If set, will save the resultant pagerank to a "
+                         "If set, will save the resultant closeness score to a "
                          "sequence of files with prefix saveprefix");
 
     if(!clopts.parse(argc, argv)) {
@@ -531,7 +533,7 @@ int main (int argc, char** argv){
 
     dc.cout() << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
 
-    graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, execution_type, clopts);
+    graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, "asyncronous", clopts);
 
     num_vertices = graph.num_vertices();
     graphlab::vertex_set start_set = graph.select(selectVertices);
@@ -541,16 +543,22 @@ int main (int argc, char** argv){
     const float runtime = engine.elapsed_seconds();
     dc.cout() << "Finished Djikstra engine in " << runtime << " seconds." << std::endl;
 
-    graphlab::omni_engine<ClearBooleans> engine2(dc,graph,execution_type,clopts);
+    graphlab::omni_engine<ClearBooleans> engine2(dc,graph,"asyncronous",clopts);
     engine2.signal_all();
     engine2.start();
 
-    graphlab::omni_engine<ClosenessAlgorithm> engine3(dc,graph,execution_type,clopts);
+    const float runtime2 = engine.elapsed_seconds();
+    dc.cout() << "Finished resetting the graph in " << runtime2 << " seconds." << std::endl;
+
+    graphlab::omni_engine<ClosenessAlgorithm> engine3(dc,graph,"asyncronous",clopts);
     engine3.signal_vset(start_set);
     engine3.start();
 
+    const float runtime3 = engine.elapsed_seconds();
+    dc.cout() << "Finished the closeness engine in " << runtime3 << " seconds." << std::endl;
+
     if (saveprefix != "") {
-      graph.save(saveprefix, djikstra_writer(),
+      graph.save(saveprefix, closeness_writer(),
          false,  // do not gzip
          true,   //save vertices
          false); // do not save edges

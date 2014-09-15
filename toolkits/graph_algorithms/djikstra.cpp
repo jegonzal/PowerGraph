@@ -1,5 +1,6 @@
 /*  
  * Copyright (c) 2014 Daniel McEnnis.
+ * portions of main Copyright (c) 2009 Carnegie Mellon
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -342,7 +343,7 @@ struct djikstra_writer {
     for(std::map<long, DjikstraNode>::const_iterator iter = v.data().djikstra_pieces.begin();
         iter != v.data().djikstra_pieces.end(); ++iter){
         long key = iter->first;
-        strm << "\t" << key << "\t" << iter->second.id;
+        strm << "\t" << key << "\t" << iter->second.id << std::endl;
     }
     return strm.str();
   }
@@ -350,15 +351,18 @@ struct djikstra_writer {
 };
 
 size_t num_vertices = 3000;
+size_t desired_vertices_count = 3000;
+size_t selected_vertices_count = 0;
 
 /*
  * Select ~3000 root nodes or an exact count which gives up around +/-3% accuracy
  * in prestige measures. It is a constant memory random selector.
  */
 bool selectVertices(const graph_type::vertex_type& vertex){
-    float r = ((float)random()) / ((float)RAND_MAX);
+    unsigned int r = random();
     std::cout << "Random seed is " << r << std::endl;
-    if(r < (3000.0 / num_vertices)){
+    if(r < ((desired_vertices_count * RAND_MAX) / num_vertices)){
+        selected_vertices_count++;
           return true;
     }
     return false;
@@ -372,16 +376,15 @@ int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
   
   // Parse command line options -----------------------------------------------
-  graphlab::command_line_options clopts("Label Propagation algorithm.");
+  graphlab::command_line_options clopts("Djikstra Algorithm.");
   std::string graph_dir;
-  std::string execution_type = "synchronous";
   clopts.attach_option("graph", graph_dir, "The graph file. Required ");
   clopts.add_positional("graph");
-  clopts.attach_option("execution", execution_type, "Execution type (synchronous or asynchronous)");
+  clopts.attach_option("samplesize", desired_vertices_count, "Target number of simultaneous spanning trees");
 
   std::string saveprefix;
   clopts.attach_option("saveprefix", saveprefix,
-                       "If set, will save the resultant pagerank to a "
+                       "If set, will save the spanning trees to a "
                        "sequence of files with prefix saveprefix");
 
   if(!clopts.parse(argc, argv)) {
@@ -401,7 +404,7 @@ int main(int argc, char** argv) {
   dc.cout() << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
 
   // Algorithm for creating the spanning trees
-  graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, execution_type, clopts);
+  graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, "asyncronous", clopts);
 
   num_vertices = graph.num_vertices();
   // create the total number of djisktra spanning trees to create at once.
@@ -416,7 +419,7 @@ int main(int argc, char** argv) {
     graph.save(saveprefix, djikstra_writer(),
        false,  // do not gzip
        true,   //save vertices
-       true); // do not save edges
+       false); // do not save edges
   }
   
 

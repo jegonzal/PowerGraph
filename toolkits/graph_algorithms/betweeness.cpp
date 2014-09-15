@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014 Daniel McEnnis.
+ * portions of main Copyright (c) 2009 Carnegie Mellon
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -161,7 +162,7 @@ public:
     }
 };
 
-// The vertex data is its label
+
 typedef PrestigeAnalysisNode vertex_data_type;
 
 typedef GatherMultiTree gather_type;
@@ -332,34 +333,39 @@ class DjikstraAlgorithm :
   }
 };
 
+size_t num_vertices = 3000;
+size_t desired_vertices_count = 3000;
+size_t selected_vertices_count = 0;
+
 /*
  * For every node, print the previous node in its spanning tree for all spanning trees this node is in.
  *
  */
-struct djikstra_writer {
+struct betweeness_writer {
   std::string save_vertex(graph_type::vertex_type v) {
     std::stringstream strm;
     strm << v.id();
+    double betweeness = 0.0;
     for(std::map<long, DjikstraNode>::const_iterator iter = v.data().djikstra_pieces.begin();
         iter != v.data().djikstra_pieces.end(); ++iter){
-        long key = iter->first;
-        strm << "\t" << key << "\t" << iter->second.id;
+        betweeness += iter->second.cost;
     }
+    betweeness /= selected_vertices_count;
+    strm << "\t" << betweeness << std::endl;
     return strm.str();
   }
   std::string save_edge (graph_type::edge_type e) { return ""; }
 };
-
-size_t num_vertices = 3000;
 
 /*
  * Select ~3000 root nodes or an exact count which gives up around +/-3% accuracy
  * in prestige measures. It is a constant memory random selector.
  */
 bool selectVertices(const graph_type::vertex_type& vertex){
-    float r = ((float)random()) / ((float)RAND_MAX);
+    unsigned int r = random();
     std::cout << "Random seed is " << r << std::endl;
-    if(r < (3000.0 / num_vertices)){
+    if(r < (desired_vertices_count * RAND_MAX / num_vertices)){
+          selected_vertices_count++;
           return true;
     }
     return false;
@@ -367,7 +373,7 @@ bool selectVertices(const graph_type::vertex_type& vertex){
 
 
 /*
- * Gather object that keeps tra
+ * Gather object that keeps track of betweeness counts for each spanning tree.
  *
  */
 class BetweenessGather{
@@ -490,16 +496,15 @@ int main (int argc, char** argv){
     global_logger().set_log_level(LOG_INFO);
 
     // Parse command line options -----------------------------------------------
-    graphlab::command_line_options clopts("Label Propagation algorithm.");
+    graphlab::command_line_options clopts("Betweeness Algorithm.");
     std::string graph_dir;
-    std::string execution_type = "synchronous";
     clopts.attach_option("graph", graph_dir, "The graph file. Required ");
     clopts.add_positional("graph");
-    clopts.attach_option("execution", execution_type, "Execution type (synchronous or asynchronous)");
+    clopts.attach_option("samplesize", desired_vertices_count, "(Sample Size) Number of spanning trees to use");
 
     std::string saveprefix;
     clopts.attach_option("saveprefix", saveprefix,
-                         "If set, will save the resultant pagerank to a "
+                         "If set, will save the resultant betweness score to a "
                          "sequence of files with prefix saveprefix");
 
     if(!clopts.parse(argc, argv)) {
@@ -518,7 +523,7 @@ int main (int argc, char** argv){
 
     dc.cout() << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
 
-    graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, execution_type, clopts);
+    graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, "asyncronous", clopts);
 
     num_vertices = graph.num_vertices();
     graphlab::vertex_set start_set = graph.select(selectVertices);
@@ -528,20 +533,20 @@ int main (int argc, char** argv){
     const float runtime = engine.elapsed_seconds();
     dc.cout() << "Finished Djikstra engine in " << runtime << " seconds." << std::endl;
 
-    graphlab::omni_engine<ClearBooleans> engine2(dc,graph,execution_type,clopts);
+    graphlab::omni_engine<ClearBooleans> engine2(dc,graph,"asyncronous",clopts);
     engine2.signal_all();
     engine2.start();
     const float runtime2 = engine.elapsed_seconds();
     dc.cout() << "Finished resetting graph engine in " << runtime2 << " seconds." << std::endl;
 
-    graphlab::omni_engine<BetweenessAlgorithm> engine3(dc,graph,execution_type,clopts);
+    graphlab::omni_engine<BetweenessAlgorithm> engine3(dc,graph,"asyncronous",clopts);
     engine3.signal_all();
     engine3.start();
     const float runtime3 = engine.elapsed_seconds();
     dc.cout() << "Finished Betweeness engine in " << runtime3 << " seconds." << std::endl;
 
     if (saveprefix != "") {
-      graph.save(saveprefix, djikstra_writer(),
+      graph.save(saveprefix, betweeness_writer(),
          false,  // do not gzip
          true,   //save vertices
          false); // do not save edges
