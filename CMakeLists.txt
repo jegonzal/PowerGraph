@@ -369,17 +369,17 @@ endif()
 # libjson ====================================================================
 # Lib Json is used to support json serialization for long term storage of
 # graph data.
-ExternalProject_Add(libjson
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/json
-  URL http://graphlab.org/deps/libjson_7.6.0.zip
-  URL_MD5 dcb326038bd9b710b8f717580c647833
-  BUILD_IN_SOURCE 1
-  CONFIGURE_COMMAND ""
-  PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libjson.patch || true
-  BUILD_COMMAND make
-  INSTALL_COMMAND prefix=<INSTALL_DIR>/ make install
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  )
+#ExternalProject_Add(libjson
+#  PREFIX ${GraphLab_SOURCE_DIR}/deps/json
+#  URL http://graphlab.org/deps/libjson_7.6.0.zip
+#  URL_MD5 dcb326038bd9b710b8f717580c647833
+#  BUILD_IN_SOURCE 1
+#  CONFIGURE_COMMAND ""
+#  PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libjson.patch || true
+#  BUILD_COMMAND make
+#  INSTALL_COMMAND prefix=<INSTALL_DIR>/ make install
+#  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+#  )
 
 
 # zookeeper ================================================================
@@ -496,9 +496,8 @@ macro(requires_core_deps NAME)
     ${Boost_LIBRARIES}
     z
     event event_pthreads
-    zookeeper_mt
-    json)
-  add_dependencies(${NAME} boost libevent libjson zookeeper)
+    zookeeper_mt)
+  add_dependencies(${NAME} boost libevent zookeeper)
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)
