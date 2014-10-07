@@ -191,7 +191,7 @@ namespace graphlab {
         logstream(LOG_INFO) << "Using the Synchronous engine." << std::endl;
         engine_ptr = new synchronous_engine_type(dc, graph, new_options);
       } else if(engine_type == "async" || engine_type == "asynchronous") {
-        logstream(LOG_INFO) << "Using the Synchronous engine." << std::endl;
+        logstream(LOG_INFO) << "Using the Asynchronous engine." << std::endl;
         engine_ptr = new async_consistent_engine_type(dc, graph, new_options);
       } else {
         logstream(LOG_FATAL) << "Invalid engine type: " << engine_type << std::endl;
