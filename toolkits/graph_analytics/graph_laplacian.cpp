@@ -303,17 +303,20 @@ int main(int argc, char** argv) {
 	  true);//whether edges are saved
 
   size_t data_num = graph.map_reduce_vertices<max_vid>(absolute_vertex_data).vid;
-  graphlab::mpi_tools::finalize();
+  //#graphlab::mpi_tools::finalize();
 
   //write the number of data
+  if (graphlab::mpi_tools::rank()==0) {
   const std::string datanum_filename = graph_dir + ".datanum";
   std::ofstream ofs(datanum_filename.c_str());
   if(!ofs) {
     std::cout << "can't create file for number of data" << std::endl;
+    graphlab::mpi_tools::finalize();
     return EXIT_FAILURE;
   }
   ofs << data_num;
-
+  }
+  graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 }
 
