@@ -306,6 +306,7 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::finalize();
 
   //write the number of data
+  if (graphlab::mpi_tools::rank()==0) {
   const std::string datanum_filename = graph_dir + ".datanum";
   std::ofstream ofs(datanum_filename.c_str());
   if(!ofs) {
@@ -313,6 +314,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   ofs << data_num;
+  }
 
   return EXIT_SUCCESS;
 }
