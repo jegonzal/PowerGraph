@@ -112,7 +112,7 @@ namespace graphlab {
           ncpus = n;
           omp_set_num_threads(ncpus);
 #else
-          ncpus = 1;
+          ncpus = n;
 #endif
       }
 
