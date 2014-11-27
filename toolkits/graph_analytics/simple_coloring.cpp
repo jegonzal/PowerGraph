@@ -35,6 +35,7 @@ typedef graphlab::vertex_id_type color_type;
 typedef graphlab::empty edge_data_type;
 bool EDGE_CONSISTENT = false;
 
+signed int color_count = 0;
 
 /*
  * This is the gathering type which accumulates an (unordered) set of
@@ -120,6 +121,8 @@ public:
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
         vertex.data() = curcolor;
+        if (curcolor > color_count)
+        	color_count++;
         break;
       }
     }
@@ -252,7 +255,8 @@ int main(int argc, char** argv) {
   engine.start();
 
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
-
+  dc.cout() << "Colored using " << color_count << " colors" << std::endl;
+		  
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
   if (output != "") {
