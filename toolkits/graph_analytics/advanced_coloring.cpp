@@ -27,7 +27,7 @@
 #include <graphlab/macros_def.hpp>
 
 
-typedef graphlab::vertex_id_type <color_type>;
+typedef graphlab::vertex_id_type color_type;
 
 /*
  * no edge data
@@ -55,20 +55,8 @@ struct set_union_gather {
    * Union it into the current set.
    */
   set_union_gather& operator+=(const set_union_gather& other) {
-
-    foreach(graphlab::vertex_id_type finalvid, other.colors) {
-    	int max = 0;
-    	foreach(graphlab::vertex_id_type othervid, other.colors) {
-
-    		int degree = 1;
-    		std::cout << "Degree of " << othervid << " is " << degree << "\n";
-    		if (degree > max){
-    	    	 max = degree;
-    	    	 finalvid = othervid;
-    	    }
-		
-    	}
-      colors.insert(finalvid);
+    foreach(graphlab::vertex_id_type othervid, other.colors) {
+      colors.insert(othervid);
     }
     return *this;
   }
@@ -166,7 +154,10 @@ public:
   }
 };
 
-
+void initialize_vertex_values(graph_type::vertex_type& v) {
+  v.data() = v.num_in_edges() + v.num_out_edges();
+  //std::cout << "Degree of " << v.id() << " = " << v.data() << std::endl;
+}
 
 
 /*
@@ -257,6 +248,9 @@ int main(int argc, char** argv) {
 
   graphlab::timer ti;
 
+  
+  dc.cout() << "Precomputing Vertex Degrees..." <<std::endl;
+  graph.transform_vertices(initialize_vertex_values);
 
   // create engine to count the number of triangles
   dc.cout() << "Coloring..." << std::endl;
