@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
   engine.start();
 
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
-  dc.cout() << "Colored using " << color_count << " colors" << std::endl;
+  dc.cout() << "Coloured using " << color_count << " colours" << std::endl;
 		  
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   dc.cout() << "Num conflicts = " << conflict_count << "\n";

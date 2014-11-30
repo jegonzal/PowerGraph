@@ -119,7 +119,7 @@ public:
              const gather_type& neighborhood) {
     // find the smallest color not described in the neighborhood
     size_t neighborhoodsize = neighborhood.colors.size();
-
+    std::cout << "Proc Vertex " << vertex.id() << " with degree " << vertex.data() << std::endl;
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
         vertex.data() = curcolor;
