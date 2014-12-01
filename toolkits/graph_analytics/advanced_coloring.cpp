@@ -30,13 +30,35 @@
 typedef graphlab::vertex_id_type color_type;
 
 /*
+ * Vertex data: colour and degree of node
+ */
+typedef struct {
+  int colour;
+  int degree;
+
+   // serialize
+  void save(graphlab::oarchive& oarc) const {
+    oarc << colour << degree;
+  }
+
+  // deserialize
+  void load(graphlab::iarchive& iarc) {
+    iarc >> colour >> degree;
+  }
+
+} vertex_data_type;
+
+
+/*
  * no edge data
  */
 typedef graphlab::empty edge_data_type;
 bool EDGE_CONSISTENT = false;
 
-signed int color_count = 0;
+unsigned int color_count = 0;
+unsigned int current_degree;
 
+std::set<int> degrees;
 /*
  * This is the gathering type which accumulates an (unordered) set of
  * all neighboring colors 
@@ -48,7 +70,7 @@ signed int color_count = 0;
  * of the unordered_set.
  */
 struct set_union_gather {
-  std::set<color_type> colors;
+  boost::unordered_set<color_type> colors;
 
   /*
    * Combining with another collection of vertices.
@@ -71,11 +93,10 @@ struct set_union_gather {
     iarc >> colors;
   }
 };
-
 /*
  * Define the type of the graph
  */
-typedef graphlab::distributed_graph<color_type,
+typedef graphlab::distributed_graph<vertex_data_type,
                                     edge_data_type> graph_type;
 
 
@@ -103,7 +124,7 @@ public:
                      edge_type& edge) const {
     set_union_gather gather;
     color_type other_color = edge.source().id() == vertex.id() ?
-                                 edge.target().data(): edge.source().data();
+                                 edge.target().data().colour: edge.source().data().colour;
     // vertex_id_type otherid= edge.source().id() == vertex.id() ?
     //                              edge.target().id(): edge.source().id();
 
@@ -119,10 +140,10 @@ public:
              const gather_type& neighborhood) {
     // find the smallest color not described in the neighborhood
     size_t neighborhoodsize = neighborhood.colors.size();
-    std::cout << "Proc Vertex " << vertex.id() << " with degree " << vertex.data() << std::endl;
+    //std::cout << "Proc Vertex " << vertex.id() << " with degree " << vertex.data().degree << std::endl;
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
-        vertex.data() = curcolor;
+        vertex.data().colour = curcolor;
         if (curcolor > color_count)
         	color_count++;
         break;
@@ -130,6 +151,8 @@ public:
     }
   }
 
+  //Simple coloring 44 colors
+  //Advanced
 
   edge_dir_type scatter_edges(icontext_type& context,
                              const vertex_type& vertex) const {
@@ -147,7 +170,7 @@ public:
               const vertex_type& vertex,
               edge_type& edge) const {
     // both points have different colors!
-    if (edge.source().data() == edge.target().data()) {
+    if (edge.source().data().colour == edge.target().data().colour) {
       context.signal(edge.source().id() == vertex.id() ? 
                       edge.target() : edge.source());
     }
@@ -155,7 +178,9 @@ public:
 };
 
 void initialize_vertex_values(graph_type::vertex_type& v) {
-  v.data() = v.num_in_edges() + v.num_out_edges();
+  v.data().degree = v.num_in_edges() + v.num_out_edges();
+  degrees.insert(v.data().degree);
+  v.data().colour = -1;
   //std::cout << "Degree of " << v.id() << " = " << v.data() << std::endl;
 }
 
@@ -166,13 +191,40 @@ void initialize_vertex_values(graph_type::vertex_type& v) {
 struct save_colors{
   std::string save_vertex(graph_type::vertex_type v) { 
     return graphlab::tostr(v.id()) + "\t" +
-           graphlab::tostr(v.data()) + "\n";
+           graphlab::tostr(v.data().colour) + "\n";
   }
   std::string save_edge(graph_type::edge_type e) {
     return "";
   }
 };
 
+typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
+
+graphlab::empty signal_vertices_at_degree (engine_type::icontext_type& ctx,
+                                     const graph_type::vertex_type& vertex) {
+  if (vertex.data().degree == current_degree) {
+    ctx.signal(vertex);
+  }
+  return graphlab::empty();
+}
+
+struct max_deg_vertex_reducer: public graphlab::IS_POD_TYPE {
+  size_t degree;
+  graphlab::vertex_id_type vid;
+  max_deg_vertex_reducer& operator+=(const max_deg_vertex_reducer& other) {
+    if (degree < other.degree) {
+      (*this) = other;
+    }
+    return (*this);
+  }
+};
+
+max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
+  max_deg_vertex_reducer red;
+  red.degree = vtx.num_in_edges() + vtx.num_out_edges();
+  red.vid = vtx.id();
+  return red;
+}
 
 /**************************************************************************/
 /*                                                                        */
@@ -180,7 +232,7 @@ struct save_colors{
 /*                                                                        */
 /**************************************************************************/
 size_t validate_conflict(graph_type::edge_type& edge) {
-  return edge.source().data() == edge.target().data();
+  return edge.source().data().colour == edge.target().data().colour;
 }
 
 
@@ -252,6 +304,12 @@ int main(int argc, char** argv) {
   dc.cout() << "Precomputing Vertex Degrees..." <<std::endl;
   graph.transform_vertices(initialize_vertex_values);
 
+  dc.cout() << "Finding max degree vertex..." << std::endl;
+  max_deg_vertex_reducer v = graph.map_reduce_vertices<max_deg_vertex_reducer>(find_max_deg_vertex);
+  int max_degree = v.degree;
+
+  
+
   // create engine to count the number of triangles
   dc.cout() << "Coloring..." << std::endl;
   if (EDGE_CONSISTENT) {
@@ -260,8 +318,18 @@ int main(int argc, char** argv) {
     clopts.get_engine_args().set_option("factorized", true);
   } 
   graphlab::async_consistent_engine<graph_coloring> engine(dc, graph, clopts);
-  engine.signal_all();
+
+  for (int x = max_degree; x > 0; x--){
+    if (degrees.find(x) != degrees.end()) {
+      //std::cout << "Colouring vertices of degree " << x << std::endl;
+      current_degree = x;
+      engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_degree);
+      
+    }
+  }
   engine.start();
+  //engine.signal_all();
+  //engine.start();
 
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
   dc.cout() << "Colored using " << color_count << " colors" << std::endl;
