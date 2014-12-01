@@ -29,22 +29,6 @@
 
 typedef graphlab::vertex_id_type color_type;
 
-typedef struct{
-
-  long unsigned int colour; 
-  long unsigned int degree;
-
-  void save(graphlab::oarchive& oarc) const {
-    oarc << colour << degree;
-  }
-
-  // deserialize
-  void load(graphlab::iarchive& iarc) {
-    iarc >> colour >> degree;
-  }
-
-} vertex_data_type; 
-
 /*
  * Vertex data: colour and degree of node
  */
@@ -72,10 +56,7 @@ typedef graphlab::empty edge_data_type;
 bool EDGE_CONSISTENT = false;
 
 unsigned int color_count = 0;
-<<<<<<< HEAD:toolkits/graph_analytics/advanced_coloring.cpp.old
-=======
 unsigned int current_degree;
->>>>>>> c8bf11841951c126742ee011813629d389b6de65:toolkits/graph_analytics/advanced_coloring.cpp
 
 std::set<int> degrees;
 /*
@@ -159,12 +140,7 @@ public:
              const gather_type& neighborhood) {
     // find the smallest color not described in the neighborhood
     size_t neighborhoodsize = neighborhood.colors.size();
-<<<<<<< HEAD:toolkits/graph_analytics/advanced_coloring.cpp.old
-    int degree = vertex.num_in_edges() + vertex.num_out_edges();
-    std::cout << "Proc Vertex " << vertex.id() << " with degree " << degree << std::endl;
-=======
     //std::cout << "Proc Vertex " << vertex.id() << " with degree " << vertex.data().degree << std::endl;
->>>>>>> c8bf11841951c126742ee011813629d389b6de65:toolkits/graph_analytics/advanced_coloring.cpp
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
         vertex.data().colour = curcolor;
@@ -203,11 +179,8 @@ public:
 
 void initialize_vertex_values(graph_type::vertex_type& v) {
   v.data().degree = v.num_in_edges() + v.num_out_edges();
-<<<<<<< HEAD:toolkits/graph_analytics/advanced_coloring.cpp.old
-=======
   degrees.insert(v.data().degree);
   v.data().colour = -1;
->>>>>>> c8bf11841951c126742ee011813629d389b6de65:toolkits/graph_analytics/advanced_coloring.cpp
   //std::cout << "Degree of " << v.id() << " = " << v.data() << std::endl;
 }
 
@@ -225,8 +198,6 @@ struct save_colors{
   }
 };
 
-<<<<<<< HEAD:toolkits/graph_analytics/advanced_coloring.cpp.old
-=======
 typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
 
 graphlab::empty signal_vertices_at_degree (engine_type::icontext_type& ctx,
@@ -237,7 +208,6 @@ graphlab::empty signal_vertices_at_degree (engine_type::icontext_type& ctx,
   return graphlab::empty();
 }
 
->>>>>>> c8bf11841951c126742ee011813629d389b6de65:toolkits/graph_analytics/advanced_coloring.cpp
 struct max_deg_vertex_reducer: public graphlab::IS_POD_TYPE {
   size_t degree;
   graphlab::vertex_id_type vid;
@@ -349,18 +319,6 @@ int main(int argc, char** argv) {
   } 
   graphlab::async_consistent_engine<graph_coloring> engine(dc, graph, clopts);
 
-<<<<<<< HEAD:toolkits/graph_analytics/advanced_coloring.cpp.old
-  //dc.cout() << "Finding highest degree vertex" << std::endl;
-  //for (unsigned int i = 0; i <= graph.num_vertices(); i++) {
-  //  max_deg_vertex_reducer v = graph.map_reduce_vertices<max_deg_vertex_reducer>(find_max_deg_vertex);
-  //  engine.signal(v.vid);
-  //}
-
-  engine.signal_all();
-  dc.cout() << "Executing..." << std::endl;
-  engine.start();
- 
-=======
   for (int x = max_degree; x > 0; x--){
     if (degrees.find(x) != degrees.end()) {
       //std::cout << "Colouring vertices of degree " << x << std::endl;
@@ -373,9 +331,7 @@ int main(int argc, char** argv) {
   //engine.signal_all();
   //engine.start();
 
->>>>>>> c8bf11841951c126742ee011813629d389b6de65:toolkits/graph_analytics/advanced_coloring.cpp
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
-  color_count++; //Omitting 0
   dc.cout() << "Colored using " << color_count << " colors" << std::endl;
 		  
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
@@ -394,4 +350,3 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
-
