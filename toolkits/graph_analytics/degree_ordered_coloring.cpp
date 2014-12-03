@@ -21,6 +21,13 @@
  */
 
 
+/*
+ * Graph coloring algorithm, such that vertex programs are scheduled in 
+ * order of vertex degree. This method shows a ~30% reduction in the 
+ * number of colors used against simple_coloring.cpp
+ *
+ */
+
 #include <boost/unordered_set.hpp>
 #include <graphlab.hpp>
 #include <graphlab/ui/metrics_server.hpp>
@@ -56,7 +63,7 @@ typedef graphlab::empty edge_data_type;
 bool EDGE_CONSISTENT = false;
 
 unsigned int color_count = 0;
-unsigned int current_degree;
+signed int current_degree;
 
 std::set<int> degrees;
 /*
@@ -301,7 +308,7 @@ int main(int argc, char** argv) {
   graphlab::timer ti;
 
   
-  dc.cout() << "Precomputing Vertex Degrees..." <<std::endl;
+  dc.cout() << "Initialising vertex data..." <<std::endl;
   graph.transform_vertices(initialize_vertex_values);
 
   dc.cout() << "Finding max degree vertex..." << std::endl;
