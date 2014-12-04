@@ -337,7 +337,7 @@ int main(int argc, char** argv) {
   engine.start();
   //engine.signal_all();
   //engine.start();
-
+  colour_count++;
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
   dc.cout() << "Colored using " << color_count << " colors" << std::endl;
 		  

@@ -152,6 +152,7 @@ public:
     //Gather adj vert that are uncoloured
     if (edge.source().data().colour == -1 && edge.source().id() != vertex.id() && edge.source().data().degree > 0)  {
        adj.insert(IntPair(edge.source().id(), edge.source().data().degree));
+       std::cout << "adding" <<  edge.source().id() << " with degree " << edge.source().data().degree << std::endl;
     }
 
     return gather;
@@ -196,24 +197,22 @@ public:
               const vertex_type& vertex,
               edge_type& edge) const {
     // both points have the same colors!
-    
     if (edge.source().data().colour == edge.target().data().colour) {
       context.signal(edge.source().id() == vertex.id() ? 
                       edge.target() : edge.source());
     }
     
-    if (!adj.empty()) {
+    else if (!adj.empty()) {
       //std::cout << "Signalling " << adj.size() << " vertices" << std::endl;
-      for (int x = 0; x < adj.size(); x++) {
+      std::cout << "In the loop" << std::endl;
         BOOST_FOREACH(IntPair const &next, adj)
         {
-          if (next.first == edge.target().id()) {
-            std::cout << "signal " << next.first << " with degree " << next.second << std::endl;
-            context.signal(edge.target());
+          //if (next.first == edge.target().id()) {
+            //std::cout << "signal " << next.first << " with degree " << next.second << std::endl;
+            context.signal_vid(next.first);
             adj.erase(next);
-          }
+          //}
         }
-      }
     }
 
     // else if (!adj.empty()) {
