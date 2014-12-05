@@ -59,6 +59,9 @@ typedef struct {
 /*
  * no edge data
  */
+
+#define UNCOLORED -1
+
 typedef graphlab::empty edge_data_type;
 bool EDGE_CONSISTENT = false;
 
@@ -199,24 +202,24 @@ public:
 
 void initialize_vertex_values(graph_type::vertex_type& v) {
   v.data().saturation = 0;
-  v.data().color = -1;
+  v.data().color = UNCOLORED;
 }
 
 void get_colored(graph_type::vertex_type& v) {
-  if (v.data().color != -1)
+  if (v.data().color != UNCOLORED)
     coloredvs++;
 }
 
 void calculate_saturation(graph_type::vertex_type& v) {
   //v.data().saturation = v.data().adj_colors.size();
 
-  if (v.data().saturation > 0 && v.data().color == -1) {
+  if (v.data().saturation > 0 && v.data().color == UNCOLORED) {
     sats.insert(v.data().saturation);
     if (v.data().saturation > max_saturation) {
       max_saturation = v.data().saturation;
     }
   }
-  if (v.data().color == -1)
+  if (v.data().color == UNCOLORED)
     still_uncolored = true;
   }
 
@@ -238,7 +241,7 @@ typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
 
 graphlab::empty signal_vertices_at_saturation (engine_type::icontext_type& ctx,
                                      const graph_type::vertex_type& vertex) {
-  if (vertex.data().saturation == current_saturation && vertex.data().color == -1) {
+  if (vertex.data().saturation == current_saturation && vertex.data().color == UNCOLORED) {
     ctx.signal(vertex);
   }
   return graphlab::empty();
@@ -404,11 +407,11 @@ int main(int argc, char** argv) {
   //engine.signal_all();
   //engine.start();
 
-  //color_count 0 inclusive
+
+  //Sometimes colours start at 1 or 2 and not 0. Fix counting mech
   color_count++;
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
   dc.cout() << "Colored using " << color_count << " colors" << std::endl;
-		  
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
   if (output != "") {

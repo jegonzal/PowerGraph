@@ -254,9 +254,9 @@ int main(int argc, char** argv) {
   engine.signal_all();
   engine.start();
 
-  colour_count++;
+  color_count++;
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
-  dc.cout() << "Coloured using " << color_count << " colours" << std::endl;
+  dc.cout() << "colored using " << color_count << " colors" << std::endl;
 		  
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   dc.cout() << "Num conflicts = " << conflict_count << "\n";

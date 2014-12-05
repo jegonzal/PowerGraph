@@ -37,25 +37,26 @@
 typedef graphlab::vertex_id_type color_type;
 
 /*
- * Vertex data: colour and degree of node
+ * Vertex data: color and degree of node
  */
 typedef struct {
-  int colour;
+  int color;
   int incidence;
 
    // serialize
   void save(graphlab::oarchive& oarc) const {
-    oarc << colour << incidence;
+    oarc << color << incidence;
   }
 
   // deserialize
   void load(graphlab::iarchive& iarc) {
-    iarc >> colour >> incidence;
+    iarc >> color >> incidence;
   }
 
 } vertex_data_type;
 
 
+#define UNCOLORED -1
 /*
  * no edge data
  */
@@ -65,9 +66,9 @@ bool EDGE_CONSISTENT = false;
 unsigned int color_count = 0;
 signed int max_incidence = 0;
 signed int current_incidence = 0;
-bool still_uncoloured = true;
+bool still_uncolored = true;
 
-unsigned int colouredvs = 0;
+unsigned int coloredvs = 0;
 std::set<int> incs;
 /*
  * This is the gathering type which accumulates an (unordered) set of
@@ -134,7 +135,7 @@ public:
                      edge_type& edge) const {
     set_union_gather gather;
     color_type other_color = edge.source().id() == vertex.id() ?
-                                 edge.target().data().colour: edge.source().data().colour;
+                                 edge.target().data().color: edge.source().data().color;
     // vertex_id_type otherid= edge.source().id() == vertex.id() ?
     //                              edge.target().id(): edge.source().id();
 
@@ -155,7 +156,7 @@ public:
     //std::cout << "Proc Vertex " << vertex.id() << " with degree " << vertex.data().degree << std::endl;
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
-        vertex.data().colour = curcolor;
+        vertex.data().color = curcolor;
         if (curcolor > color_count)
           color_count++;
         break;
@@ -182,13 +183,13 @@ public:
               const vertex_type& vertex,
               edge_type& edge) const {
     // both points have different colors!
-    if (edge.source().data().colour == edge.target().data().colour) {
+    if (edge.source().data().color == edge.target().data().color) {
       context.signal(edge.source().id() == vertex.id() ? 
                       edge.target() : edge.source());
     }
 
     //this is just IDO, we want to see if this color exists in neighbours adj list or not
-    //if (edge.target().data().colour == -1) {
+    //if (edge.target().data().color == UNCOLORED) {
     if (vertex.id() == edge.target().id())
       edge.source().data().incidence++;
     else
@@ -200,23 +201,23 @@ public:
 
 void initialize_vertex_values(graph_type::vertex_type& v) {
   v.data().incidence = 0;
-  v.data().colour = -1;
+  v.data().color = UNCOLORED;
 }
 
-void get_coloured(graph_type::vertex_type& v) {
-  if (v.data().colour != -1)
-    colouredvs++;
+void get_colored(graph_type::vertex_type& v) {
+  if (v.data().color != UNCOLORED)
+    coloredvs++;
 }
 
 void calculate_incidence(graph_type::vertex_type& v) {
-  if (v.data().incidence > 0 && v.data().colour == -1) {
+  if (v.data().incidence > 0 && v.data().color == UNCOLORED) {
     incs.insert(v.data().incidence);
     if (v.data().incidence > max_incidence) {
       max_incidence = v.data().incidence;
     }
   }
-  if (v.data().colour == -1)
-    still_uncoloured = true;
+  if (v.data().color == UNCOLORED)
+    still_uncolored = true;
   }
 
 
@@ -226,7 +227,7 @@ void calculate_incidence(graph_type::vertex_type& v) {
 struct save_colors{
   std::string save_vertex(graph_type::vertex_type v) { 
     return graphlab::tostr(v.id()) + "\t" +
-           graphlab::tostr(v.data().colour) + "\n";
+           graphlab::tostr(v.data().color) + "\n";
   }
   std::string save_edge(graph_type::edge_type e) {
     return "";
@@ -237,7 +238,7 @@ typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
 
 graphlab::empty signal_vertices_at_incidence (engine_type::icontext_type& ctx,
                                      const graph_type::vertex_type& vertex) {
-  if (vertex.data().incidence == current_incidence && vertex.data().colour == -1) {
+  if (vertex.data().incidence == current_incidence && vertex.data().color == UNCOLORED) {
     ctx.signal(vertex);
   }
   return graphlab::empty();
@@ -255,13 +256,13 @@ struct max_deg_vertex_reducer: public graphlab::IS_POD_TYPE {
 };
 
 max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
-  //we only want uncoloured (helps us colour disconnected graph components)
-  //if (vtx.data().colour == -1) {
+  //we only want uncolored (helps us color disconnected graph components)
+  if (vtx.data().color == UNCOLORED) {
     max_deg_vertex_reducer red;
     red.degree = vtx.num_in_edges() + vtx.num_out_edges();
     red.vid = vtx.id();
     return red;
-  //}
+  }
 }
 
 /**************************************************************************/
@@ -270,7 +271,7 @@ max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
 /*                                                                        */
 /**************************************************************************/
 size_t validate_conflict(graph_type::edge_type& edge) {
-  return edge.source().data().colour == edge.target().data().colour;
+  return edge.source().data().color == edge.target().data().color;
 }
 
 
@@ -361,11 +362,12 @@ int main(int argc, char** argv) {
   engine.start();
 
     
-      //std::cout << "Colouring vertices of degree " << x << std::endl;
+      //std::cout << "coloring vertices of degree " << x << std::endl;
 
-  while (still_uncoloured) {
-    still_uncoloured = false;
-    //graph.transform_vertices(get_coloured);
+  while (still_uncolored) {
+    still_uncolored = false;
+    
+    //graph.transform_vertices(get_colored);
     graph.transform_vertices(calculate_incidence); 
     for (int x = max_incidence; x > 0; x--) {    
       if (incs.find(x) != incs.end()) {
@@ -376,6 +378,7 @@ int main(int argc, char** argv) {
       }
     }
     engine.start();
+
     /*if (max_incidence == 0) {
       current_incidence = 0;
       engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_incidence);
@@ -385,16 +388,16 @@ int main(int argc, char** argv) {
     
     
     //Attempt to resolve connected components
-    // int old_coloured = colouredvs;
-    // colouredvs = 0;
-    // graph.transform_vertices(get_coloured);
-    // dc.cout() << "old = " << old_coloured << " and new = " << colouredvs << std::endl;
-    // if (old_coloured >= colouredvs) {
-    //   dc.cout() << "Colouring next disconnected component..." << std::endl;
+    // int old_colored = coloredvs;
+    // coloredvs = 0;
+    // graph.transform_vertices(get_colored);
+    // dc.cout() << "old = " << old_colored << " and new = " << coloredvs << std::endl;
+    // if (old_colored >= coloredvs) {
+    //   dc.cout() << "coloring next disconnected component..." << std::endl;
     //   max_deg_vertex_reducer vnew = graph.map_reduce_vertices<max_deg_vertex_reducer>(find_max_deg_vertex);
     //   engine.signal(vnew.vid);
     // }
-    //colouredvs = 0;
+    //coloredvs = 0;
 
   }
 
@@ -402,12 +405,21 @@ int main(int argc, char** argv) {
   //engine.signal_all();
   //engine.start();
 
-  //Colour_count 0 inclusive
+  
+  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+  //Need to add support for multiple connected components. Temporary "fix"
+  if (conflict_count != 0) {
+    dc.cout() << "Graph contains more than one component, resorting back to simple method..." <<std::endl;
+    color_count = 0;
+    engine.signal_all();
+    engine.start();
+    conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+  }
+
+  //Sometimes colours start at 1 or 2 and not 0. Fix counting mech
   color_count++;
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
   dc.cout() << "Colored using " << color_count << " colors" << std::endl;
-      
-  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
   if (output != "") {
     graph.save(output,

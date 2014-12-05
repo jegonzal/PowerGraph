@@ -152,7 +152,7 @@ public:
       if (neighborhood.colors.count(curcolor) == 0) {
         vertex.data().colour = curcolor;
         if (curcolor > color_count)
-        	color_count++;
+          color_count++;
         break;
       }
     }
@@ -337,11 +337,20 @@ int main(int argc, char** argv) {
   engine.start();
   //engine.signal_all();
   //engine.start();
-  colour_count++;
+
+  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+  //Fails to colour properly. Unsure why, can't be multiple components because other heurstics don't fail here.
+  if (conflict_count != 0) {
+    //dc.cout() << "Graph contains more than one component, resorting back to simple method..." <<std::endl;
+    color_count = 0;
+    engine.signal_all();
+    engine.start();
+    conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+  }
+
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
   dc.cout() << "Colored using " << color_count << " colors" << std::endl;
-		  
-  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
   if (output != "") {
     graph.save(output,
