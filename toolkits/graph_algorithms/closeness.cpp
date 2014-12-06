@@ -533,7 +533,7 @@ int main (int argc, char** argv){
 
     dc.cout() << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
 
-    graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, "asyncronous", clopts);
+    graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, "asynchronous", clopts);
 
     num_vertices = graph.num_vertices();
     graphlab::vertex_set start_set = graph.select(selectVertices);
@@ -543,14 +543,14 @@ int main (int argc, char** argv){
     const float runtime = engine.elapsed_seconds();
     dc.cout() << "Finished Djikstra engine in " << runtime << " seconds." << std::endl;
 
-    graphlab::omni_engine<ClearBooleans> engine2(dc,graph,"asyncronous",clopts);
+    graphlab::omni_engine<ClearBooleans> engine2(dc,graph,"asynchronous",clopts);
     engine2.signal_all();
     engine2.start();
 
     const float runtime2 = engine.elapsed_seconds();
     dc.cout() << "Finished resetting the graph in " << runtime2 << " seconds." << std::endl;
 
-    graphlab::omni_engine<ClosenessAlgorithm> engine3(dc,graph,"asyncronous",clopts);
+    graphlab::omni_engine<ClosenessAlgorithm> engine3(dc,graph,"asynchronous",clopts);
     engine3.signal_vset(start_set);
     engine3.start();
 

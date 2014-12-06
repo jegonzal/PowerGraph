@@ -404,7 +404,7 @@ int main(int argc, char** argv) {
   dc.cout() << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
 
   // Algorithm for creating the spanning trees
-  graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, "asyncronous", clopts);
+  graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, "asynchronous", clopts);
 
   num_vertices = graph.num_vertices();
   // create the total number of djisktra spanning trees to create at once.
