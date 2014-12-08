@@ -14,9 +14,6 @@
  *  express or implied.  See the License for the specific language
  *  governing permissions and limitations under the License.
  *
- * For more about this software visit:
- *
- *      http://www.graphlab.ml.cmu.edu
  *  
  *  Code written by Danny Bickson, CMU
  *  Any changes to the code must include this original license notice in full.

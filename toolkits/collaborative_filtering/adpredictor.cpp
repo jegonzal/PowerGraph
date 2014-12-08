@@ -14,14 +14,11 @@
  *  express or implied.  See the License for the specific language
  *  governing permissions and limitations under the License.
  *
- * For more about this software visit:
- *
- *      http://www.graphlab.ml.cmu.edu
  * Implementation of the adpredictor algorithm as given in the paper:
  * Web-Scale Bayesian Click-Through Rate Prediction for Sponsored Search Advertising in Microsoft’s Bing Search Engine
  * Thore Graepel, Joaquin Quinonero Candela, Thomas Borchert, and Ralf Herbrich
  * ICML 2010
- * Implemented by Danny Bickson, GraphLab Inc.
+ * Implemented by Danny Bickson, GraphLab, Inc.
  *
  */
 

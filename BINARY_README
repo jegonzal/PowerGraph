@@ -13,7 +13,7 @@ license/LICENSE.txt for details.
 Introduction
 ============
 
-GraphLab is a graph-based, high performance, distributed computation framework
+GraphLab PowerGraph is a graph-based, high performance, distributed computation framework
 written in C++.  
 
 GraphLab Features:
@@ -34,13 +34,6 @@ Learning Toolkits:     Tackle challenging machine
                        learning problems with ease
 
 
-For more details on the GraphLab see http://graphlab.org, including
-documentation, tutorial, etc.
-
-The source code and documentation for all applications can be found at 
-http://docs.graphlab.org/toolkits.html
-
-
 ========
 Mac OS X
 ========
@@ -49,7 +42,7 @@ distributed capabilities. All toolkits therefore run entirely on one machine
 in shared memory.
 
 These binaries have been tested to run on OS X 10.6 or greater. Though they
-may work on 10.5 as well. Please let us know if you encounter any issues.
+may work on 10.5 as well.
 
 =====
 Linux
