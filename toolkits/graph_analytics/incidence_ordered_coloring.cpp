@@ -63,12 +63,12 @@ typedef struct {
 typedef graphlab::empty edge_data_type;
 bool EDGE_CONSISTENT = false;
 
-unsigned int color_count = 0;
 signed int max_incidence = 0;
 signed int current_incidence = 0;
 bool still_uncolored = true;
 
 unsigned int coloredvs = 0;
+std::set<int> used_colors;
 std::set<int> incs;
 /*
  * This is the gathering type which accumulates an (unordered) set of
@@ -156,9 +156,8 @@ public:
     //std::cout << "Proc Vertex " << vertex.id() << " with degree " << vertex.data().degree << std::endl;
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
+        used_colors.insert(curcolor);
         vertex.data().color = curcolor;
-        if (curcolor > color_count)
-          color_count++;
         break;
       }
     }
@@ -292,6 +291,7 @@ int main(int argc, char** argv) {
     "The Asynchronous engine is used.");
   std::string prefix, format;
   std::string output;
+  float alpha = 2.1;
   size_t powerlaw = 0;
   clopts.attach_option("graph", prefix,
                        "Graph input. reads all graphs matching prefix*");
@@ -301,6 +301,8 @@ int main(int argc, char** argv) {
                        "A prefix to save the output.");
    clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
+      clopts.attach_option("alpha", alpha,
+                       "Alpha in powerlaw distrubution");
   clopts.attach_option("edgescope", EDGE_CONSISTENT,
                        "Use Locking. ");
     
@@ -320,7 +322,7 @@ int main(int argc, char** argv) {
 
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
-    graph.load_synthetic_powerlaw(powerlaw, false, 2, 100000000);
+    graph.load_synthetic_powerlaw(powerlaw, false, alpha, 100000000);
   } else { // Load the graph from a file
     if (prefix == "") {
       dc.cout() << "--graph is not optional\n";
@@ -407,20 +409,10 @@ int main(int argc, char** argv) {
 
   
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
-  //Need to add support for multiple connected components. Temporary "fix"
-  if (conflict_count != 0) {
-    dc.cout() << "Graph contains more than one component, resorting back to simple method..." <<std::endl;
-    color_count = 0;
-    engine.signal_all();
-    engine.start();
-    conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
-  }
-
-  //Sometimes colours start at 1 or 2 and not 0. Fix counting mech
-  color_count++;
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
-  dc.cout() << "Colored using " << color_count << " colors" << std::endl;
+  dc.cout() << "Colored using " << used_colors.size() << " colors" << std::endl;
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
+
   if (output != "") {
     graph.save(output,
               save_colors(),
