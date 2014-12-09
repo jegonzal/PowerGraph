@@ -78,11 +78,11 @@ Login into the master node using
 <a name="cluster"></a>
 # Deploying in a Cluster
 
-## Step 0: Install GraphLab on one of your cluster nodes.
+## Step 0: Install GraphLab PowerGraph on one of your cluster nodes.
 
 Install GraphLab PowerGraph, using instructions in the [README.md](README.md), on your master node (one of your cluster machines).
 
-## Step 1: Copy GraphLab files to all machines.
+## Step 1: Copy GraphLab PowerGraph files to all machines.
 
 1. Create a file called in your home directory called “machines” with the names of all the MPI nodes participate in the computation.
 
@@ -276,7 +276,6 @@ Now run GraphLab:
 ```
     
 Where –ncpus is the number of deployed cores.
-For any questions or bug fixes about this tutorial, please email: graphlabapi@googlegroups.com
 
 <a id="benchmarking"></a>
 # Benchmarking on AWS EC2
@@ -385,7 +384,7 @@ opts.ami = "ami-31360458"
 
 ### Support
 
-If you encounter any problem when trying to run this benchmarking feel free to email graphlabapi@groups.google.com for support.
+If you encounter any problem when trying to run this benchmarking feel free to post on [forum.graphlab.com](http://forum.graphlab.com)
 
 <a id="perf_tuning"></a>
 # Fine tuning GraphLab PowerGraph performance
