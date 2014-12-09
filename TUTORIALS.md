@@ -96,6 +96,7 @@ mynode2.some.random.domain
 mynode18.some.random.domain
 ```
 2) Verify you have the machines files from section 1) in your root folder of all of the machines.
+
 3) You will need to setup password-less SSH between the master node and all other machines.
 
 Verify it is possible to ssh without password between any pairs of machines. These [instructions](http://www.linuxproblem.org/art_9.html) explain how to setup ssh without passswords.
