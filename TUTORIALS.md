@@ -20,7 +20,7 @@
 * Install [boto](https://pypi.python.org/pypi/boto/). This is the AWS Python client. To install, run: 
 
 ```
-    sudo pip install boto
+sudo pip install boto
 ```
 
 * Download and install GraphLab PowerGraph using the instructions in the [README.md](README.md).
