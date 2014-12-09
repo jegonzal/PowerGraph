@@ -1,13 +1,13 @@
-GraphLab PowerGraph v2.2
-------------------------
+# GraphLab PowerGraph v2.2
+
 **UPDATE: For a signficant evolution of this codebase, see GraphLab Create which is available for download at [GraphLab.com](graphlab.com).**
 
 History: In 2013, team that created GraphLab PowerGraph started the Seattle-based company, GraphLab, Inc. The learnings from GraphLab PowerGraph and GraphChi projects have culminated into GraphLab Create, a enterprise-class data science platform for data scientists and software engineers that can simplify building and deploying advanced machine learning models as a RESTful predictive service. See [GraphLab.com](graphlab.com) for more information. 
 
 GraphLab PowerGraph is no longer in active development by the founding team. GraphLab PowerGraph is now supported by the community at [http://forum.graphlab.com/](http://forum.graphlab.com/).  
 
-Introduction
-------------
+# Introduction
+
 GraphLab PowerGraph is a graph-based, high performance, distributed computation framework written in C++. 
 
 The GraphLab PowerGraph academic project was started in 2009 at Carnegie Mellon University to develop a new parallel computation abstraction tailored to machine learning. GraphLab PowerGraph 1.0 employed shared-memory design. In GraphLab PowerGraph 2.1, the framework was redesigned to target the distributed environment. It addressed the difficulties with real-world power-law graphs and achieved unparalleled performance at the time. In GraphLab PowerGraph 2.2, the Warp System was introduced and provided a new flexible, distributed architecture around fine-grained user-mode threading (fibers). The Warp System allows one to easily extend the abstraction, to improve optimization for example, while also improving usability.
@@ -16,8 +16,8 @@ GraphLab PowerGraph is the culmination of 4-years of research and development in
 
 Related is GraphChi, a spin-off project separate from the GraphLab PowerGraph project. GraphChi was designed to run very large graph computations on just a single machine, by using a novel algorithm for processing the graph from disk (SSD or hard drive) enabling a single desktop computer (actually a Mac Mini) to tackle problems that previously demanded an entire cluster. For more information, see [https://github.com/GraphChi](https://github.com/GraphChi).
 
-License
--------
+# License
+
 
 GraphLab PowerGraph is released under the [Apache 2 license](http://www.apache.org/licenses/LICENSE-2.0.html).
 
@@ -37,8 +37,8 @@ If you use GraphLab PowerGraph in your research, please cite our paper:
     }
 ```
 
-Academic and Conference Papers
-------------------------------
+# Academic and Conference Papers
+
 Joseph E. Gonzalez, Yucheng Low, Haijie Gu, Danny Bickson, and Carlos Guestrin (2012). "[PowerGraph: Distributed Graph-Parallel Computation on Natural Graphs](https://www.usenix.org/conference/osdi12/technical-sessions/presentation/gonzalez)." Proceedings of the 10th USENIX Symposium on Operating Systems Design and Implementation (OSDI '12).
 
 Yucheng Low, Joseph Gonzalez, Aapo Kyrola, Danny Bickson, Carlos Guestrin and Joseph M. Hellerstein (2012). "[Distributed GraphLab: A Framework for Machine Learning and Data Mining in the Cloud](http://vldb.org/pvldb/vol5/p716_yuchenglow_vldb2012.pdf)." Proceedings of the VLDB Endowment (PVLDB).
@@ -48,8 +48,7 @@ Yucheng Low, Joseph Gonzalez, Aapo Kyrola, Danny Bickson, Carlos Guestrin, and J
 Aapo Kyrola, Guy Blelloch, and Carlos Guestrin (2012). "[GraphChi: Large-Scale Graph computation on Just a PC](https://www.usenix.org/conference/osdi12/technical-sessions/presentation/kyrola)." Proceedings of the 10th USENIX Symposium on Operating Systems Design and Implementation (OSDI '12).
 
 
-The Software Stack
-------------------
+# The Software Stack
 
 The GraphLab PowerGraph project consists of a core API and a collection of high-performance machine learning and data mining toolkits built on top. The API is written in C++ and built on top of standard cluster and cloud technologies. Inter-process communication is accomplished over TCP-IP and MPI is used to launch and manage GraphLab PowerGraph programs. Each process is multithreaded to fully utilize the multicore resources available on modern cluster nodes. It supports reading and writing to both Posix and HDFS filesystems.
 
@@ -74,8 +73,7 @@ GraphLab PowerGraph Feature Highlights
 
 The current version of GraphLab PowerGraph was tested on Ubuntu Linux 64-bit 10.04,  11.04 (Natty), 12.04 (Pangolin) as well as Mac OS X 10.7 (Lion) and Mac OS X 10.8 (Mountain Lion). It requires a 64-bit operating system.
 
-Dependencies
-------------
+# Dependencies
 
 To simplify installation, GraphLab PowerGraph currently downloads and builds most of its required dependencies using CMake’s External Project feature. This also means the first build could take a long time.
 
@@ -99,18 +97,18 @@ There are however, a few dependencies which must be manually satisfied.
 * JDK 6 or greater [Optional]
    + Required for HDFS support 
 
-### Satisfying Dependencies on Mac OS X
+## Satisfying Dependencies on Mac OS X
 
 Installing XCode with the command line tools (in XCode 4.3 you have to do this manually in the XCode Preferences -&gt; Download pane), satisfies all of these dependencies.
 
-### Satisfying Dependencies on Ubuntu
+## Satisfying Dependencies on Ubuntu
 
 All the dependencies can be satisfied from the repository:
 
     sudo apt-get update
     sudo apt-get install gcc g++ build-essential libopenmpi-dev openmpi-bin default-jdk cmake zlib1g-dev git
 
-## Downloading GraphLab PowerGraph
+# Downloading GraphLab PowerGraph
 
 You can download GraphLab PowerGraph directly from the Github Repository. Github also offers a zip download of the repository if you do not have git.
 
@@ -120,8 +118,7 @@ The git command line for cloning the repository is:
     cd graphlab
 
 
-Compiling and Running
----------------------
+# Compiling and Running
 
 ```
 ./configure
@@ -156,8 +153,7 @@ If you encounter issues please post the following on the [GraphLab forum](http:/
 * utput of g++ -v and clang++ -v
 * contents of graphlab/config.log and graphlab/configure.deps
 
-Writing Your Own Apps
----------------------
+# Writing Your Own Apps
 
 There are two ways to write your own apps.
 
@@ -165,7 +161,7 @@ There are two ways to write your own apps.
 * Install and link against Graphlab PowerGraph (not recommended)
 
 
-### 1:  Working in the GraphLab PowerGraph Source Tree
+## 1:  Working in the GraphLab PowerGraph Source Tree
 
 This is the best option if you just want to try using GraphLab PowerGraph quickly. GraphLab PowerGraph
 uses the CMake build system which enables you to quickly create
@@ -190,7 +186,7 @@ should compile your app. If your app does not show up, try running
     touch apps/CMakeLists.txt
 
 
-### 2: Installing and Linking Against GraphLab PowerGraph
+## 2: Installing and Linking Against GraphLab PowerGraph
 
 To install and use GraphLab PowerGraph this way will require your system
 to completely satisfy all remaining dependencies, which GraphLab PowerGraph normally 
@@ -217,12 +213,16 @@ run make install . This will install the following:
     
 Once you have installed GraphLab PowerGraph you can compile your program by running:
 
-    g++ -O3 -pthread -lzookeeper_mt -lzookeeper_st -lboost_context -lz -ltcmalloc -levent -levent_pthreads -ljson -lboost_filesystem -lboost_program_options -lboost_system -lboost_iostreams -lboost_date_time -lhdfs -lgraphlab hello_world.cpp 
+```
+g++ -O3 -pthread -lzookeeper_mt -lzookeeper_st -lboost_context -lz -ltcmalloc -levent -levent_pthreads -ljson -lboost_filesystem -lboost_program_options -lboost_system -lboost_iostreams -lboost_date_time -lhdfs -lgraphlab hello_world.cpp
+```
     
 If you have compiled with MPI support, you will also need
 
    -lmpi -lmpi++ 
-  
+   
+# Tutorials
+See [tutorials](/tutorials/TUTORIALS.md)
   
 # Release Notes
 ##### **map_reduce_vertices/edges and transform_vertices/edges are not parallelized on Mac OS X**
