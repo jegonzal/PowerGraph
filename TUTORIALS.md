@@ -1,4 +1,4 @@
-Table of Contents
+**Table of Contents**
 * [Deploying on AWS EC2 Cluster](#ec2)
 * [Deploying in a Cluster](#cluster)
 * [Deploying on a single multicore machine](#multicore)
@@ -118,49 +118,55 @@ In order for mpirsync to run properly all machines must have all network ports o
 ## Step 2a: Run PageRank on a synthetic graph
 
 This step runs the [PageRank](http://en.wikipedia.org/wiki/PageRank) algorithm on a synthetic generated graph of 100,000 nodes. It spawns two GraphLab mpi instances (-n 2).
+```
+mpiexec -n 2 -hostfile ~/machines /path/to/pagerank --powerlaw=100000
+```
 
-    <pre class="hljs">`mpiexec -n 2 -hostfile ~/machines /path/to/pagerank --powerlaw=100000`</pre>
+## Step 2: Run GraphLab ALS using subset of Netflix data
 
-    ## Step 2: Run GraphLab ALS using subset of Netflix data
+This step runs ALS (alternating least squares) in a cluster using small netflix susbset.
+It first downloads an anonymized, synthetic Netflix dataset from the web: [http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train) and [http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate), and runs 5 alternating least squares iterations. After the run is completed, you can login into any of the nodes and view the output files in the folder ~/graphlab/release/toolkits/collaborative_filtering/ 
+The algorithm operation is explained in detail [here](http://docs.graphlab.org/collaborative_filtering.html).
 
-    This step runs ALS (alternating least squares) in a cluster using small netflix susbset.
-    It first downloads an anonymized, synthetic Netflix dataset from the web: [http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train) and [http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate), and runs 5 alternating least squares iterations. After the run is completed, you can login into any of the nodes and view the output files in the folder ~/graphlab/release/toolkits/collaborative_filtering/
-    The algorithm operation is explained in detail [here](http://docs.graphlab.org/collaborative_filtering.html).
+ ```
+ cd /some/ns/folder/
+mkdir smallnetflix
+cd smallnetflix/
+wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train
+wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate
+```
+Now run GraphLab:
 
-    <pre class="hljs">`cd /some/ns/folder/
-    mkdir smallnetflix
-    cd smallnetflix/
-    wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train
-    wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate`</pre>
-    Now run GraphLab:
+````mpiexec -n 2 -hostfile ~/machines /path/to/als  --matrix /some/ns/folder/smallnetflix/ --max_iter=3 --ncpus=1 --minval=1 --maxval=5 --predictions=out_file
+``
+Where -n is the number of MPI nodes, and –ncpus is the number of deployed cores on each MPI node.
 
-    <pre class="hljs">`mpiexec -n 2 -hostfile ~/machines /path/to/als  --matrix /some/ns/folder/smallnetflix/ --max_iter=3 --ncpus=1 --minval=1 --maxval=5 --predictions=out_file`</pre>
-    Where -n is the number of MPI nodes, and –ncpus is the number of deployed cores on each MPI node.
+machines is a file which includes a list of the machines you like to deploy on (each machine in a new line)
 
-    machines is a file which includes a list of the machines you like to deploy on (each machine in a new line)
+Note: this section assumes you have a network storage (ns) folder where the input can be stored.
+Alternatively, you can split the input into several disjoint files, and store the subsets on the cluster machines.
 
-    Note: this section assumes you have a network storage (ns) folder where the input can be stored.
-    Alternatively, you can split the input into several disjoint files, and store the subsets on the cluster machines.
+Note: Don’t forget to change /path/to/als and /some/ns/folder to your actual folder path!
 
-    Note: Don’t forget to change /path/to/als and /some/ns/folder to your actual folder path!
+Note: For mpich2, use -f instead of -hostfile.
 
-    Note: For mpich2, use -f instead of -hostfile.
+## Step 3:
 
-    ## Step 3:
+[Fine tuning graphlab deployment](#perf_tuning).
 
-    [Fine tuning graphlab deployment](#perf_tuning).
+## Errors and their resolution:
 
-    ## Errors and their resolution:
+### Error:
 
-    ### Error:
+```/mnt/info/home/daroczyb/als: error while loading shared libraries: libevent_pthreads-2.0.so.5: cannot open shared object file: No such file or directory
+```
 
-    <pre class="hljs">`/mnt/info/home/daroczyb/als: error while loading shared libraries: libevent_pthreads-2.0.so.5: cannot open shared object file: No such file or directory`</pre>
+**Solution:**
 
-    **Solution:**
+You should define LD_LIBRARY_PATH to point to the location of libevent_pthreads, this is done with the -x mpi command, for example:
 
-    You should define LD_LIBRARY_PATH to point to the location of libevent_pthreads, this is done with the -x mpi command, for example:
-
-    <pre class="hljs">`mpiexec --hostfile machines -x LD_LIBRARY_PATH=/home/daroczyb/graphlab/deps/local/lib/ /mnt/info/home/daroczyb/als /mnt/info/home/daroczyb/smallnetflix_mm.train`</pre>
+```mpiexec --hostfile machines -x LD_LIBRARY_PATH=/home/daroczyb/graphlab/deps/local/lib/ /mnt/info/home/daroczyb/als /mnt/info/home/daroczyb/smallnetflix_mm.train
+```
 
     ### Error:
 
@@ -353,23 +359,22 @@ This step runs the [PageRank](http://en.wikipedia.org/wiki/PageRank) algorithm o
     2) run with the additional command line argument:
     <pre class="hljs">`-r us-east-1`</pre>
 
-    ### Support
+### Support
 
-    If you encounter any problem when trying to run this benchmarking feel free to email graphlabapi@groups.google.com for support.
+If you encounter any problem when trying to run this benchmarking feel free to email graphlabapi@groups.google.com for support.
 
-    <a id="perf_tuning">
+<a id="perf_tuning"></a>
+# Fine tuning GraphLab performance
 
-    # Fine tuning GraphLab performance
-    </a>
-    This page contains tips and examples on how to setup GraphLab properly on your cluster and how to squeeze performance.
+This section contains tips and examples on how to setup GraphLab properly on your cluster and how to squeeze performance.
 
-    ## 0: Compile in release
+## 0: Compile in release
 
-    Verify you compiled graphlab in the release subfolder (and not in debug subfolder). Compiling in release may speed execution up to x10 times!
+Verify you compiled graphlab in the release subfolder (and not in debug subfolder). Compiling in release may speed execution up to x10 times!
 
-    Tip: Always compile in release when testing performance.
+Tip: Always compile in release when testing performance.
 
-    ## 1: Understanding input graph loading
+## 1: Understanding input graph loading
 
     GraphLab has built in parallel loading of the input graph. However, for efficient parallel loading, the input file should be split into multiple disjoint sub files. When using a single input file, the graph loading becomes serial (which is bad!).
 
@@ -385,25 +390,34 @@ This step runs the [PageRank](http://en.wikipedia.org/wiki/PageRank) algorithm o
 
     2) Run:
 
-    <pre class="hljs">`mpiexec -n 2 --hostfile ~/machines  /home/ubuntu/graphlab/release/demoapps/rpc/rpc_example1`</pre>
-    As part of the output, you should see something like this:
+```
+mpiexec -n 2 --hostfile ~/machines  /home/ubuntu/graphlab/release/demoapps/rpc/rpc_example1
+```
+As part of the output, you should see something like this:
 
-    <pre class="hljs">`TCP Communication layer constructed.
-    TCP Communication layer constructed.
+```
+TCP Communication layer constructed.
+TCP Communication layer constructed.
 
-    10
-    5 plus 1 is : 6
-    11 plus 1 is : 12`</pre>
-    If you get something else, please report an error as explained below
+10
+5 plus 1 is : 6
+11 plus 1 is : 12
+```
 
-    ## 3: Fine tuning of the partitioning.
+If you get something else, please report an error as explained below
 
-    Previous to the program execution, the graph is first loaded into memory and partitioned into the different cluster machines. It is possible to try different partitioning strategies. This is done using the following flags:
+## 3: Fine tuning of the partitioning.
 
-    <pre class="hljs">`--graph_opts="ingress=oblivious"`</pre>
-    or
+Previous to the program execution, the graph is first loaded into memory and partitioned into the different cluster machines. It is possible to try different partitioning strategies. This is done using the following flags:
 
-    <pre class="hljs">`--graph_opts="ingress=grid" # works for power of 2 sized cluster i.e. 2,4,8,.. machines
+```--graph_opts="ingress=oblivious
+```
+
+or
+
+````
+--graph_opts="ingress=grid" # works for power of 2 sized cluster i.e. 2,4,8,.. machines
+```
 
 For different graphs, different partitioning methods may give different performance gains.
 
