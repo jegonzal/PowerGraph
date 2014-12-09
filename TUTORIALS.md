@@ -1,6 +1,6 @@
 # GraphLab PowerGraph Tutorials
 
-**Table of Contents**
+##Table of Contents
 * [Deploying on AWS EC2 Cluster](#ec2)
 * [Deploying in a Cluster](#cluster)
 * [Deploying on a single multicore machine](#multicore)
