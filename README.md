@@ -239,7 +239,7 @@ The following are data sets links we found useful when getting started with Grap
 
 ##Collaborative Filtering
 * [Million Song dataset](http://labrosa.ee.columbia.edu/millionsong/)
-* [Movielens dataset GroupLens]("http://grouplens.org/datasets/movielens/)
+* [Movielens dataset GroupLens](http://grouplens.org/datasets/movielens/)
 * [KDD Cup 2012 by Tencent, Inc.](https://www.kddcup2012.org/)
 * [University of Florida sparse matrix collection](http://www.cise.ufl.edu/research/sparse/matrices/)
 
