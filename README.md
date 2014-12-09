@@ -222,7 +222,7 @@ If you have compiled with MPI support, you will also need
    -lmpi -lmpi++ 
    
 # Tutorials
-See [tutorials](/tutorials/TUTORIALS.md)
+See [tutorials](TUTORIALS.md)
   
 # Release Notes
 ##### **map_reduce_vertices/edges and transform_vertices/edges are not parallelized on Mac OS X**
