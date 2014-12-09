@@ -47,6 +47,10 @@ Yucheng Low, Joseph Gonzalez, Aapo Kyrola, Danny Bickson, Carlos Guestrin and Jo
 
 Yucheng Low, Joseph Gonzalez, Aapo Kyrola, Danny Bickson, Carlos Guestrin, and Joseph M. Hellerstein (2010). "[GraphLab: A New Parallel Framework for Machine Learning](http://arxiv.org/pdf/1006.4990v1.pdf)." Conference on Uncertainty in Artificial Intelligence (UAI).
 
+Li, Kevin; Gibson, Charles; Ho, David; Zhou, Qi; Kim, Jason; Buhisi, Omar; Brown, Donald E.; Gerber, Matthew, "[Assessment of machine learning algorithms in cloud computing] frameworks(http://ieeexplore.ieee.org/xpl/articleDetails.jsp?reload=true&arnumber=6549501)", Systems and Information Engineering Design Symposium (SIEDS), 2013 IEEE, pp.98,103, 26-26 April 2013
+
+[Towards Benchmarking Graph-Processing Platforms](http://sc13.supercomputing.org/sites/default/files/PostersArchive/post152.html). by Yong Guo (Delft University of Technology), Marcin Biczak (Delft University of Technology), Ana Lucia Varbanescu (University of Amsterdam), Alexandru Iosup (Delft University of Technology), Claudio Martella (VU University Amsterdam), Theodore L. Willke (Intel Corporation), in Super Computing 13
+
 Aapo Kyrola, Guy Blelloch, and Carlos Guestrin (2012). "[GraphChi: Large-Scale Graph computation on Just a PC](https://www.usenix.org/conference/osdi12/technical-sessions/presentation/kyrola)." Proceedings of the 10th USENIX Symposium on Operating Systems Design and Implementation (OSDI '12).
 
 
