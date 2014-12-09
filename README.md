@@ -229,6 +229,26 @@ If you have compiled with MPI support, you will also need
    
 # Tutorials
 See [tutorials](TUTORIALS.md)
+
+# Datasets
+The following are data sets links we found useful when getting started with GraphLab PowerGraph.
+
+##Social Graphs
+[Stanford Large Network Dataset (SNAP)](http://snap.stanford.edu/data/index.html)
+[Laboratory for Web Algorithms](http://law.di.unimi.it/datasets.php)
+
+##Collaborative Filtering
+[Million Song dataset](http://labrosa.ee.columbia.edu/millionsong/)
+[Movielens dataset GroupLens]("http://grouplens.org/datasets/movielens/)
+[KDD Cup 2012 by Tencent, Inc.](https://www.kddcup2012.org/)
+[University of Florida sparse matrix collection](http://www.cise.ufl.edu/research/sparse/matrices/)
+
+##Classification
+[Airline on time performance](http://stat-computing.org/dataexpo/2009/)
+[SF restaurants](http://missionlocal.org/san-francisco-restaurant-health-inspections/)
+
+##Misc
+[Amazon Web Services public datasets](http://aws.amazon.com/datasets)
   
 # Release Notes
 ##### **map_reduce_vertices/edges and transform_vertices/edges are not parallelized on Mac OS X**
