@@ -1,16 +1,16 @@
 
-[GraphLab on EC2 Cluster](#ec2)
+[Deploying on AWS EC2 Cluster](#ec2)
 
-[GraphLab Cluster Deployment](#cluster)
+[Deploying in a Cluster](#cluster)
 
-[GraphLab deployment on a single multicore machine](#multicore)
+[Deploying on a single multicore machine](#multicore)
 
 [Benchmarking GraphLab on ec2](#benchmarking)
 
 [Fine tuning GraphLab performance](#perf_tuning)
 
 <a name="ec2"></a>
-# Using GraphLab PowerGraph on EC2 Cluster
+# Deploying in AWS EC2 Cluster
 
 ## Step 0: Requirements
 * You should have Amazon EC2 account eligible to run on us-east-1a zone.
@@ -74,7 +74,7 @@ Login into the master node using
 ```./gl-ec2 -i ~/.ssh/graphlab.pem -s 1 login launchtest```
 
 <a name="cluster"></a>
-# Deploying GraphLab PowerGraph Cluster
+# Deploying in Cluster
 
 ## Step 0: Install GraphLab on one of your cluster nodes.
 
@@ -86,9 +86,11 @@ Install GraphLab PowerGraph, using instructions in the [README.md](README.md), o
 
 For example:
 
-```cat ~/machines```
-```mynode1.some.random.domain
+```
+cat ~/machines
+mynode1.some.random.domain
 mynode2.some.random.domain
+```
     ..
     mynode18.some.random.domain`</pre>
     2) Verify you have the machines files from section 1) in your root folder of all of the machines.
