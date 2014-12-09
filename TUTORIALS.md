@@ -1,13 +1,9 @@
-
-[Deploying on AWS EC2 Cluster](#ec2)
-
-[Deploying in a Cluster](#cluster)
-
-[Deploying on a single multicore machine](#multicore)
-
-[Benchmarking GraphLab on ec2](#benchmarking)
-
-[Fine tuning GraphLab performance](#perf_tuning)
+Table of Contents
+* [Deploying on AWS EC2 Cluster](#ec2)
+* [Deploying in a Cluster](#cluster)
+* [Deploying on a single multicore machine](#multicore)
+* [Benchmarking GraphLab on ec2](#benchmarking)
+* [Fine tuning GraphLab performance](#perf_tuning)
 
 <a name="ec2"></a>
 # Deploying in AWS EC2 Cluster
@@ -90,33 +86,38 @@ For example:
 cat ~/machines
 mynode1.some.random.domain
 mynode2.some.random.domain
+...
+mynode18.some.random.domain
 ```
-    ..
-    mynode18.some.random.domain`</pre>
-    2) Verify you have the machines files from section 1) in your root folder of all of the machines.
+2) Verify you have the machines files from section 1) in your root folder of all of the machines.
 
-    3) You will need to setup password-less SSH between the master node and all other machines.
+3) You will need to setup password-less SSH between the master node and all other machines.
 
-    Verify it is possible to ssh without password between any pairs of machines. These [instructions](http://www.linuxproblem.org/art_9.html) explain how to setup ssh without passswords.
+Verify it is possible to ssh without password between any pairs of machines. These [instructions](http://www.linuxproblem.org/art_9.html) explain how to setup ssh without passswords.
 
-    Before proceeding, verify that this is setup correctly; check that the following connects to the remote machine without prompting for a password:
+Before proceeding, verify that this is setup correctly; check that the following connects to the remote machine without prompting for a password:
 
-    <pre class="hljs">`# from machine mynode1.some.random.domain
-    ssh mynode2.some.random.domain`</pre>
-    4) On the node you installed GraphLab on, run the following commands to copy GraphLab files to the rest of the machines:
+```
+# from machine mynode1.some.random.domain
+ssh mynode2.some.random.domain
+```
 
-    <pre class="hljs">`cd ~/graphlab/release/toolkits
-    ~/graphlab/scripts/mpirsync
-    cd ~/graphlab/deps/local
-    ~/graphlab/scripts/mpirsync`</pre>
+4) On the node you installed GraphLab on, run the following commands to copy GraphLab files to the rest of the machines:
 
-    This step will only work if the file you created in step 1 was named "machines" and located in your home directory.
+```
+cd ~/graphlab/release/toolkits
+~/graphlab/scripts/mpirsync
+cd ~/graphlab/deps/local
+~/graphlab/scripts/mpirsync
+```
 
-    In order for mpirsync to run properly all machines must have all network ports open.
+This step will only work if the file you created in step 1 was named "machines" and located in your home directory.
 
-    ## Step 2a: Run PageRank on a synthetic graph
+In order for mpirsync to run properly all machines must have all network ports open.
 
-    This step runs the [PageRank](http://en.wikipedia.org/wiki/PageRank) algorithm on a synthetic generated graph of 100,000 nodes. It spawns two GraphLab mpi instances (-n 2).
+## Step 2a: Run PageRank on a synthetic graph
+
+This step runs the [PageRank](http://en.wikipedia.org/wiki/PageRank) algorithm on a synthetic generated graph of 100,000 nodes. It spawns two GraphLab mpi instances (-n 2).
 
     <pre class="hljs">`mpiexec -n 2 -hostfile ~/machines /path/to/pagerank --powerlaw=100000`</pre>
 
