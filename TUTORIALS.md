@@ -127,11 +127,10 @@ This step runs the [PageRank](http://en.wikipedia.org/wiki/PageRank) algorithm o
 mpiexec -n 2 -hostfile ~/machines /path/to/pagerank --powerlaw=100000
 ```
 
-## Step 2: Run GraphLab ALS using subset of Netflix data
+## Step 2: Run GraphLab PowerGraph ALS using subset of Netflix data
 
 This step runs ALS (alternating least squares) in a cluster using small netflix susbset.
-It first downloads an anonymized, synthetic Netflix dataset from the web: [http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train) and [http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate), and runs 5 alternating least squares iterations. After the run is completed, you can login into any of the nodes and view the output files in the folder ~/graphlab/release/toolkits/collaborative_filtering/ 
-The algorithm operation is explained in detail [here](http://docs.graphlab.org/collaborative_filtering.html).
+It first downloads an anonymized, synthetic Netflix dataset from the web: [http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train) and [http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate), and runs 5 alternating least squares iterations. After the run is completed, you can login into any of the nodes and view the output files in the folder ~/graphlab/release/toolkits/collaborative_filtering/
 
  ```
  cd /some/ns/folder/
