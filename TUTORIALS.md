@@ -76,7 +76,7 @@ Login into the master node using
 ```
 
 <a name="cluster"></a>
-# Deploying in Cluster
+# Deploying in a Cluster
 
 ## Step 0: Install GraphLab on one of your cluster nodes.
 
