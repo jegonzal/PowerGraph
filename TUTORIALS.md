@@ -256,16 +256,14 @@ when configuring GraphLab.
 
 ## Step 1: Run GraphLab ALS
 
-This step runs ALS (alternating least squares) in a cluster using small netflix susbset. It first downloads the data from the web: http://graphlab.org/downloads/datasets/, runs 5 alternating least squares iterations. After the run is completed, the output files will be created in the running folder (the folder graphlab/release/toolkits/collaborative_filtering/) 
-
-The algorithm operation is explained in detail [here](http://docs.graphlab.org/collaborative_filtering.html).
+This step runs ALS (alternating least squares) in a cluster using small netflix susbset. It first downloads the data from the web, runs 5 alternating least squares iterations. After the run is completed, the output files will be created in the running folder (the folder graphlab/release/toolkits/collaborative_filtering/) 
 
 ```
 cd graphlab/release/toolkits/collaborative_filtering/
 mkdir smallnetflix
 cd smallnetflix/
-wget http://graphlab.org/files/smallnetflix_mm.train_.gz
-wget http://graphlab.org/files/smallnetflix_mm.validate.gz
+wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train
+wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate
 cd ..
 ```
 
