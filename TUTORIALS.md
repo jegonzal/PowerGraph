@@ -61,7 +61,9 @@ After the run is completed, login to the master node and view the output files i
 
 ## Step 5: Shutdown the Cluster
 
-```./gl-ec2 -i ~/.ssh/graphlab.pem -k grpahlabkey destroy launchtest```
+```
+./gl-ec2 -i ~/.ssh/graphlab.pem -k grpahlabkey destroy launchtest
+```
 
 ## Other Useful Commands:
 
@@ -181,12 +183,14 @@ mnt/info/home/daroczyb/als: error while loading shared libraries: libjvm.so: can
 
 Point LD_LIBRARY_PATH to the location of libjvm.so using the -x mpi command:
 
-```mpiexec --hostfile machines -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/daroczyb/graphlab/deps/local/lib/:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/amd64/server/ /mnt/info/home/daroczyb/als /mnt/info/home/daroczyb/smallnetflix_mm.train
+```
+mpiexec --hostfile machines -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/daroczyb/graphlab/deps/local/lib/:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/amd64/server/ /mnt/info/home/daroczyb/als /mnt/info/home/daroczyb/smallnetflix_mm.train
 ```
 
 ### Error:
 
-```problem with execution of /graphlab/release/toolkits/collaborative_filtering/als  on  debian1:  [Errno 2] No such file or directory
+```
+problem with execution of /graphlab/release/toolkits/collaborative_filtering/als  on  debian1:  [Errno 2] No such file or directory
 ```
 
 **Solution:**
@@ -201,8 +205,8 @@ a prompt asking for password when running mpiexec
 
 ### Error:
 
-``
-`Exception in thread "main" java.lang.IllegalArgumentException: Wrong FS: hdfs://[domain]:9000/user/[user_name]/data.txt, expected: file:///
+```
+Exception in thread "main" java.lang.IllegalArgumentException: Wrong FS: hdfs://[domain]:9000/user/[user_name]/data.txt, expected: file:///
     at org.apache.hadoop.fs.FileSystem.checkPath(FileSystem.java:381)
     at org.apache.hadoop.fs.RawLocalFileSystem.pathToFile(RawLocalFileSystem.java:55)
     at org.apache.hadoop.fs.RawLocalFileSystem.listStatus(RawLocalFileSystem.java:307)
@@ -224,7 +228,8 @@ BAD TERMINATION OF ONE OF YOUR APPLICATION PROCESSES, EXITCODE: 11, CLEANING UP 
 ```
 or:
 
-```[xyzserver:22296] *** Process received signal *** mpiexec noticed that process rank 0 with PID 22296 on node xyzserver exited on signal 11 (Segmentation fault).
+```
+[xyzserver:22296] *** Process received signal *** mpiexec noticed that process rank 0 with PID 22296 on node xyzserver exited on signal 11 (Segmentation fault).
 ```
 
 **Solution:**
@@ -236,138 +241,145 @@ Check that all machines have access to, or are using the same binary
 
 ## Preliminaries:
 
-    ## Step 0: Install GraphLab on one of your cluster nodes.
+## Step 0: Install GraphLab on one of your cluster nodes.
 
-    Using the instructions [here](/projects/source.html) on your master node (one of your cluster machines), except invoke the configure script with the ‘–no_mpi’ flag.
-    Don’t forget to use
-    <pre class="hljs">`./configure --no_mpi`</pre>
+Using the instructions [here](/projects/source.html) on your master node (one of your cluster machines), except invoke the  configure script with the ‘–no_mpi’ flag.
+Don’t forget to use
+```
+./configure --no_mpi
+```
 
-    when configuring GraphLab.
+when configuring GraphLab.
 
-    ## Step 1: Run GraphLab ALS
+## Step 1: Run GraphLab ALS
 
-    This step runs ALS (alternating least squares) in a cluster using small netflix susbset.
-    It first downloads the data from the web: http://graphlab.org/downloads/datasets/,
-    runs 5 alternating least squares iterations. After the run is completed, the output files will be created in the running folder
-    (the folder graphlab/release/toolkits/collaborative_filtering/)
-    The algorithm operation is explained in detail [here](http://docs.graphlab.org/collaborative_filtering.html).
+This step runs ALS (alternating least squares) in a cluster using small netflix susbset. It first downloads the data from the web: http://graphlab.org/downloads/datasets/, runs 5 alternating least squares iterations. After the run is completed, the output files will be created in the running folder (the folder graphlab/release/toolkits/collaborative_filtering/) 
 
-    <pre class="hljs">`cd graphlab/release/toolkits/collaborative_filtering/
-    mkdir smallnetflix
-    cd smallnetflix/
-    wget http://graphlab.org/files/smallnetflix_mm.train_.gz
-    wget http://graphlab.org/files/smallnetflix_mm.validate.gz
-    cd ..`</pre>
+The algorithm operation is explained in detail [here](http://docs.graphlab.org/collaborative_filtering.html).
 
-    Now run GraphLab:
+```
+cd graphlab/release/toolkits/collaborative_filtering/
+mkdir smallnetflix
+cd smallnetflix/
+wget http://graphlab.org/files/smallnetflix_mm.train_.gz
+wget http://graphlab.org/files/smallnetflix_mm.validate.gz
+cd ..
+```
 
-    <pre class="hljs">`./als --matrix ./smallnetflix/ --max_iter=5 --ncpus=1 --predictions=out_file`</pre>
-    Where –ncpus is the number of deployed cores.
-    For any questions or bug fixes about this tutorial, please email: graphlabapi@googlegroups.com
+Now run GraphLab:
 
-    <a id="benchmarking">
+```
+./als --matrix ./smallnetflix/ --max_iter=5 --ncpus=1 --predictions=out_file
+```
+    
+Where –ncpus is the number of deployed cores.
+For any questions or bug fixes about this tutorial, please email: graphlabapi@googlegroups.com
 
-    # Benchmarking GraphLab on ec2
-    </a>
-    A commonly repeating task is evaluation of GraphLab performance and scaling properties on a cluster. To help
-    jump start benchmarking we have created this tutorial.
+<a id="benchmarking"></a>
+# Benchmarking on ec2
 
-    ## Step 0: Requirements
+A commonly repeating task is evaluation of GraphLab performance and scaling properties on a cluster. To help jump start benchmarking we have created this tutorial.
 
-    1) You should have Amazon EC2 account eligible to run on us-west zone.
+## Step 0: Requirements
 
-    2) Find out using the Amazon AWS console your AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (under your account name on the top right corner-> security credentials -> access keys)
+1. You should have Amazon EC2 account eligible to run on us-west zone.
+2. Find out using the Amazon AWS console your AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (under your account name on the top right corner-> security credentials -> access keys)
+3. You should have a keypair attached to the zone you are running on (in our example us-west) as explained [here](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html). You will need to know your keypair name (amazonec2 in our example), and the location of the private key (~/.ssh/amazonec2.pem in our example).
+4. Install boto. This is the AWS Python client. To install, run: ‘sudo pip boto’.
+5. Download and install GraphLab  using the instructions [here](/projects/source.html).
 
-    3) You should have a keypair attached to the zone you are running on (in our example us-west) as explained [here](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html). You will need to know your keypair name (amazonec2 in our example), and the location of the private key (~/.ssh/amazonec2.pem in our example).
+## Step 1: Recommended setting
 
-    4) Install boto. This is the AWS Python client. To install, run: ‘sudo pip boto’.
+We recommend using high performance computing instances (like cc2.8xlarge) since we observed a significant improved performance especially related to variation in cluster load and network utilization. The scripts also allow using regular instances.
 
-    5) Download and install GraphLab  using the instructions [here](/projects/source.html).
+To avoid ec2 unexpected loads, we recommend repeating each experiment a few times and computing the average.
 
-    ## Step 1: Recommended setting
+## Step 2: Environment Setup
 
-    We recommend using high performance computing instances (like cc2.8xlarge) since we observed a significant improved performance especially related to variation in cluster load and network utilization. The scripts also allow using regular instances.
-    To avoid ec2 unexpected loads, we recommend repeating each experiment a few times and computing the average.
+Edit your .bashrc or .bash_profile or .profile files (remember to source it after editing, using the bash command “source <filename>”)
 
-    ## Step 2: Environment Setup
+```
+export AWS_ACCESS_KEY_ID=[ Your access key ]
+export AWS_SECRET_ACCESS_KEY=[ Your access key secret ]
+```
 
-    Edit your .bashrc or .bash_profile or .profile files (remember to source it after editing, using the bash command “source <filename>”)
+## Step 3: configure benchmarking
 
-    <pre class="hljs">`export AWS_ACCESS_KEY_ID=[ Your access key ]
-    export AWS_SECRET_ACCESS_KEY=[ Your access key secret ]`</pre>
+Edit the [benchmark_ec2.sh](https://github.com/graphlab-code/graphlab/blob/master/scripts/ec2/benchmark_ec2.sh) script found under graphlab/scripts/ec2
+1. Select the requested algorithms of the following options:
+ ```
+ALS=1 # alternating least squares
+SVD=1 # singular value decomposition
+PR=1  # pagerank
+```
+(Setting an algorithm to 0 will disable its run).
+2. Select the number of slaves (any number between 0 to n) by setting the MAX_SLAVES variable.
+3. Select the number of experiment repeats (any number between 0 to n) by setting the MAX_RETRY variable. The benchmarking script, spawns an ec2 cluster of size n machines, and then tests the requested algorithm using 0, 1, … n-1 slaves. Each experiment is repeated MAX_RETRY times.
 
-    ## Step 3: configure benchmarking
+### Step 3: Perform benchmarking
 
-    Edit the [benchmark_ec2.sh](https://github.com/graphlab-code/graphlab/blob/master/scripts/ec2/benchmark_ec2.sh) script found under graphlab/scripts/ec2
-    1) Select the requested algorithms of the following options:
-    <pre class="hljs">`ALS=1 # alternating least squares
-    SVD=1 # singular value decomposition
-    PR=1  # pagerank`</pre>
-    (Setting an algorithm to 0 will disable its run).
-    2) Select the number of slaves (any number between 0 to n) by setting the MAX_SLAVES variable.
+```
+cd ~/graphlabapi/scripts/ec2
+./benchmark_ec2.sh
+```
+It is advised to redirect the benchmarking output to file, for example on bash:
 
-    3) Select the number of experiment repeats (any number between 0 to n) by setting the MAX_RETRY variable.
+ ```
+ ./benchmark_ec2 > output 2>&1
+ ```
 
-    The benchmarking script, spawns an ec2 cluster of size n machines, and then tests the requested algorithm using
-    0, 1, … n-1 slaves. Each experiment is repeated MAX_RETRY times.
+### Step 4: Processing the results
 
-    ### Step 3: Perform benchmarking
+For detecting final runtime for ALS/SVD
 
-    <pre class="hljs">`cd ~/graphlabapi/scripts/ec2
-    ./benchmark_ec2.sh`</pre>
-    It is advised to redirect the benchmarking output to file, for example on bash:
+```
+grep "Runtime" output
+```
+For detecting final runtime for PR:
 
-    <pre class="hljs">`./benchmark_ec2 > output 2>&1`</pre>
+```
+grep "Finished Running" output
+```
+You will need to manually compute the average runtime for each case. A recommended metric to use is the “speedup” curve, which is the time for executing on a single machine divided by the time executing on k machines. The optimal result is linear speedup, namely running on k machines speeds up the algorithm k times vs. running on a single machine.
 
-    ### Step 4: Processing the results
+### Step 5: behind the scenes
 
-    For detecting final runtime for ALS/SVD
+Here is a more detailed explanation of the benchmarking process. The benchmarking is calling gl-ec2 script which calls [gl_ec2.py](https://github.com/graphlab-code/graphlab/blob/master/scripts/ec2/gl_ec2.py) script.
+1. The “launch” command to start a graphlab cluster with X machines.
+2. The “update” command to get the latest version of graphlab from git, recompile it, and disseminate the binary to the salves
+3. The “als_demo”, “svd_demo”, “pagerank_demo” command benchmark ALS/SVD/PR algorithms. It first downloads a dataset from the web and then calls graphlab with the right command lines to issue a run on the downloaded dataset. For PR we use the [LiveJournal](http://snap.stanford.edu/data/soc-LiveJournal1.html) dataset. For ALS/SVD we use a [netflix like synthetic sample](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train).
+4. In case you would like to benchmark a different dataset, you can edit the dataset URL in the gl_ec2.py example.
+5. In case you would like to benchmark a different algorithm, you can add an additional youralgo_demo section into the gl_ec2.py script.
+6. In case you would like to bechmark a regular instance, simply change the following line in gl_ec2.py from
 
-    <pre class="hljs">`grep "Runtime" output`</pre>
-    For detecting final runtime for PR:
+````
+./gl-ec2 -i ~/.ssh/amazonec2.pem -k amazonec2 -a hpc -s $MAX_SLAVES -t cc2.8xlarge launch hpctest
+```
+to:
 
-    <pre class="hljs">`grep "Finished Running" output`</pre>
-    You will need to manually compute the average runtime for each case.
-    A recommended metric to use is the “speedup” curve, which is the time for executing on a single machine divided
-    by the time executing on k machines. The optimal result is linear speedup, namely running on k machines speeds up
-    the algorithm k times vs. running on a single machine.
+```
+./gl-ec2 -i ~/.ssh/amazonec2.pem -k amazonec2  -s $MAX_SLAVES -t m1.xlarge launch hpctest
+```
 
-    ### Step 5: behind the scenes
+### Advanced topics.
 
-    Here is a more detailed explanation of the benchmarking process. The benchmarking is
-    calling gl-ec2 script which calls [gl_ec2.py](https://github.com/graphlab-code/graphlab/blob/master/scripts/ec2/gl_ec2.py) script.
-    1) The “launch” command to start a graphlab cluster with X machines.
+In case you like to work in a different ec2 region (than the default us-west):
 
-    2) The “update” command to get the latest version of graphlab from git, recompile it, and disseminate the binary to the salves
+For us-east region, those are the provided AMIs:
 
-    3) The “als_demo”, “svd_demo”, “pagerank_demo” command benchmark ALS/SVD/PR algorithms. It first downloads a dataset from the web
+Standard: ami-31360458, high performance: ami-39360450.
 
-    and then calls graphlab with the right command lines to issue a run on the downloaded dataset. For PR we use the [LiveJournal](http://snap.stanford.edu/data/soc-LiveJournal1.html) dataset. For ALS/SVD we use a [netflix like synthetic sample](http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train).
-    4) In case you would like to benchmark a different dataset, you can edit the dataset URL in the gl_ec2.py example.
+You should
 
-    5) In case you would like to benchmark a different algorithm, you can add an additional youralgo_demo section into the gl_ec2.py script.
-
-    6) In case you would like to bechmark a regular instance, simply change the following line in gl_ec2.py from
-
-    <pre class="hljs">`./gl-ec2 -i ~/.ssh/amazonec2.pem -k amazonec2 -a hpc -s $MAX_SLAVES -t cc2.8xlarge launch hpctest`</pre>
-    to:
-
-    <pre class="hljs">`./gl-ec2 -i ~/.ssh/amazonec2.pem -k amazonec2  -s $MAX_SLAVES -t m1.xlarge launch hpctest`</pre>
-
-    ### Advanced topics.
-
-    In case you like to work in a different ec2 region (than the default us-west):
-
-    For us-east region, those are the provided AMIs:
-
-    Standard: ami-31360458, high performance: ami-39360450.
-
-    You should
-
-    1) add the following line just before: [gl_ec2.py](https://github.com/graphlab-code/graphlab/blob/master/scripts/ec2/gl_ec2.py#L223)
-    <pre class="hljs">`opts.ami = "ami-31360458"`</pre>
-    2) run with the additional command line argument:
-    <pre class="hljs">`-r us-east-1`</pre>
+1. add the following line just before: [gl_ec2.py](https://github.com/graphlab-code/graphlab/blob/master/scripts/ec2/gl_ec2.py#L223)
+    
+```
+opts.ami = "ami-31360458"
+```
+2. run with the additional command line argument:
+```
+-r us-east-1
+```
 
 ### Support
 
