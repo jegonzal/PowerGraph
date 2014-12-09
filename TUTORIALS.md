@@ -1,9 +1,11 @@
+# GraphLab PowerGraph Tutorials
+
 **Table of Contents**
 * [Deploying on AWS EC2 Cluster](#ec2)
 * [Deploying in a Cluster](#cluster)
 * [Deploying on a single multicore machine](#multicore)
-* [Benchmarking GraphLab on ec2](#benchmarking)
-* [Fine tuning GraphLab performance](#perf_tuning)
+* [Benchmarking on AWS EC2](#benchmarking)
+* [Fine tuning GraphLab PowerGraph performance](#perf_tuning)
 
 <a name="ec2"></a>
 # Deploying in AWS EC2 Cluster
@@ -276,7 +278,7 @@ Where –ncpus is the number of deployed cores.
 For any questions or bug fixes about this tutorial, please email: graphlabapi@googlegroups.com
 
 <a id="benchmarking"></a>
-# Benchmarking on ec2
+# Benchmarking on AWS EC2
 
 A commonly repeating task is evaluation of GraphLab performance and scaling properties on a cluster. To help jump start benchmarking we have created this tutorial.
 
