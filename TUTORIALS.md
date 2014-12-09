@@ -84,7 +84,7 @@ Install GraphLab PowerGraph, using instructions in the [README.md](README.md), o
 
 ## Step 1: Copy GraphLab PowerGraph files to all machines.
 
-1. Create a file called in your home directory called “machines” with the names of all the MPI nodes participate in the computation.
+1) Create a file called in your home directory called “machines” with the names of all the MPI nodes participate in the computation.
 
 For example:
 
@@ -95,8 +95,8 @@ mynode2.some.random.domain
 ...
 mynode18.some.random.domain
 ```
-2. Verify you have the machines files from section 1) in your root folder of all of the machines.
-3. You will need to setup password-less SSH between the master node and all other machines.
+2) Verify you have the machines files from section 1) in your root folder of all of the machines.
+3) You will need to setup password-less SSH between the master node and all other machines.
 
 Verify it is possible to ssh without password between any pairs of machines. These [instructions](http://www.linuxproblem.org/art_9.html) explain how to setup ssh without passswords.
 
@@ -107,7 +107,7 @@ Before proceeding, verify that this is setup correctly; check that the following
 ssh mynode2.some.random.domain
 ```
 
-4. On the node you installed GraphLab on, run the following commands to copy GraphLab files to the rest of the machines:
+4) On the node you installed GraphLab on, run the following commands to copy GraphLab files to the rest of the machines:
 
 ```
 cd ~/graphlab/release/toolkits
@@ -287,7 +287,7 @@ A commonly repeating task is evaluation of GraphLab performance and scaling prop
 1. You should have Amazon EC2 account eligible to run on us-west zone.
 2. Find out using the Amazon AWS console your AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (under your account name on the top right corner-> security credentials -> access keys)
 3. You should have a keypair attached to the zone you are running on (in our example us-west) as explained [here](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html). You will need to know your keypair name (amazonec2 in our example), and the location of the private key (~/.ssh/amazonec2.pem in our example).
-4. Install boto. This is the AWS Python client. To install, run: ‘sudo pip boto’.
+4. Install boto. This is the AWS Python client. To install, run: `sudo pip boto`.
 5. Download and install GraphLab  using the instructions [here](/projects/source.html).
 
 ## Step 1: Recommended setting
