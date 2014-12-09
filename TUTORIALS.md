@@ -137,8 +137,9 @@ wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validat
 ```
 Now run GraphLab:
 
-````mpiexec -n 2 -hostfile ~/machines /path/to/als  --matrix /some/ns/folder/smallnetflix/ --max_iter=3 --ncpus=1 --minval=1 --maxval=5 --predictions=out_file
-``
+````
+mpiexec -n 2 -hostfile ~/machines /path/to/als  --matrix /some/ns/folder/smallnetflix/ --max_iter=3 --ncpus=1 --minval=1 --maxval=5 --predictions=out_file
+```
 Where -n is the number of MPI nodes, and –ncpus is the number of deployed cores on each MPI node.
 
 machines is a file which includes a list of the machines you like to deploy on (each machine in a new line)
@@ -158,43 +159,50 @@ Note: For mpich2, use -f instead of -hostfile.
 
 ### Error:
 
-```/mnt/info/home/daroczyb/als: error while loading shared libraries: libevent_pthreads-2.0.so.5: cannot open shared object file: No such file or directory
+```
+/mnt/info/home/daroczyb/als: error while loading shared libraries: libevent_pthreads-2.0.so.5: cannot open shared object file: No such file or directory
 ```
 
 **Solution:**
 
 You should define LD_LIBRARY_PATH to point to the location of libevent_pthreads, this is done with the -x mpi command, for example:
 
-```mpiexec --hostfile machines -x LD_LIBRARY_PATH=/home/daroczyb/graphlab/deps/local/lib/ /mnt/info/home/daroczyb/als /mnt/info/home/daroczyb/smallnetflix_mm.train
+```
+mpiexec --hostfile machines -x LD_LIBRARY_PATH=/home/daroczyb/graphlab/deps/local/lib/ /mnt/info/home/daroczyb/als /mnt/info/home/daroczyb/smallnetflix_mm.train
 ```
 
-    ### Error:
+### Error:
 
-    <pre class="hljs">`mnt/info/home/daroczyb/als: error while loading shared libraries: libjvm.so: cannot open shared object file: No such file or directory`</pre>
+```
+mnt/info/home/daroczyb/als: error while loading shared libraries: libjvm.so: cannot open shared object file: No such file or directory
+```
 
-    **Solution:**
+**Solution:**
 
-    Point LD_LIBRARY_PATH to the location of libjvm.so using the -x mpi command:
+Point LD_LIBRARY_PATH to the location of libjvm.so using the -x mpi command:
 
-    <pre class="hljs">`mpiexec --hostfile machines -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/daroczyb/graphlab/deps/local/lib/:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/amd64/server/ /mnt/info/home/daroczyb/als /mnt/info/home/daroczyb/smallnetflix_mm.train`</pre>
+```mpiexec --hostfile machines -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/daroczyb/graphlab/deps/local/lib/:/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/amd64/server/ /mnt/info/home/daroczyb/als /mnt/info/home/daroczyb/smallnetflix_mm.train
+```
 
-    ### Error:
+### Error:
 
-    <pre class="hljs">`problem with execution of /graphlab/release/toolkits/collaborative_filtering/als  on  debian1:  [Errno 2] No such file or directory`</pre>
+```problem with execution of /graphlab/release/toolkits/collaborative_filtering/als  on  debian1:  [Errno 2] No such file or directory
+```
 
-    **Solution:**
+**Solution:**
 
-    You should verify the executable is found on the same path on all machines.
+You should verify the executable is found on the same path on all machines.
 
-    ### Error:
+### Error:
 
-    a prompt asking for password when running mpiexec
+a prompt asking for password when running mpiexec
 
-    **Solution:** Use the following [instructions](http://www.linuxproblem.org/art_9.html) to allow connection with a public/private key pair (no password).
+**Solution:** Use the following [instructions](http://www.linuxproblem.org/art_9.html) to allow connection with a public/private key pair (no password).
 
-    ### Error:
+### Error:
 
-    <pre class="hljs">`Exception in thread "main" java.lang.IllegalArgumentException: Wrong FS: hdfs://[domain]:9000/user/[user_name]/data.txt, expected: file:///
+``
+`Exception in thread "main" java.lang.IllegalArgumentException: Wrong FS: hdfs://[domain]:9000/user/[user_name]/data.txt, expected: file:///
     at org.apache.hadoop.fs.FileSystem.checkPath(FileSystem.java:381)
     at org.apache.hadoop.fs.RawLocalFileSystem.pathToFile(RawLocalFileSystem.java:55)
     at org.apache.hadoop.fs.RawLocalFileSystem.listStatus(RawLocalFileSystem.java:307)
@@ -202,29 +210,31 @@ You should define LD_LIBRARY_PATH to point to the location of libevent_pthreads,
     at org.apache.hadoop.fs.FileSystem.listStatus(FileSystem.java:867)
     at org.apache.hadoop.fs.ChecksumFileSystem.listStatus(ChecksumFileSystem.java:487)
     Call to org.apache.hadoop.fs.FileSystem::listStatus failed!
-    WARNING: distributed_graph.hpp(load_from_hdfs:1889): No files found matching hdfs://[domain]:9000/user/[user_name]/data.txt`</pre>
+    WARNING: distributed_graph.hpp(load_from_hdfs:1889): No files found matching hdfs://[domain]:9000/user/[user_name]/data.txt
+```
 
-    **Solution:**
-    Verify you classpath includes all hadoop required folders.
+**Solution:**
+Verify you classpath includes all hadoop required folders.
 
-    ### Error:
+### Error:
 
-    Just after TCP Communication layer is constructed: 
-    <pre class="hljs">`BAD TERMINATION OF ONE OF YOUR APPLICATION PROCESSES, EXITCODE: 11, CLEANING UP REMAINING PROCESSES, YOU CAN IGNORE THE BELOW CLEANUP MESSAGES`</pre>
-    or:
+Just after TCP Communication layer is constructed: 
+```
+BAD TERMINATION OF ONE OF YOUR APPLICATION PROCESSES, EXITCODE: 11, CLEANING UP REMAINING PROCESSES, YOU CAN IGNORE THE BELOW CLEANUP MESSAGES
+```
+or:
 
-    <pre class="hljs">`[xyzserver:22296] *** Process received signal *** mpiexec noticed that process rank 0 with PID 22296 on node xyzserver exited on signal 11 (Segmentation fault).`</pre>
+```[xyzserver:22296] *** Process received signal *** mpiexec noticed that process rank 0 with PID 22296 on node xyzserver exited on signal 11 (Segmentation fault).
+```
 
-    **Solution:**
+**Solution:**
 
-    Check that all machines have access to, or are using the same binary
+Check that all machines have access to, or are using the same binary
 
-    <a id="multicore">
+<a id="multicore"></a>
+# GraphLab deployment on a single multicore machine
 
-    # GraphLab deployment on a single multicore machine
-    </a>
-
-    ## Preliminaries:
+## Preliminaries:
 
     ## Step 0: Install GraphLab on one of your cluster nodes.
 
