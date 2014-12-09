@@ -1,6 +1,6 @@
 # GraphLab PowerGraph v2.2
 
-**UPDATE: For a signficant evolution of this codebase, see GraphLab Create which is available for download at [GraphLab.com](graphlab.com).**
+## UPDATE: For a signficant evolution of this codebase, see GraphLab Create which is available for download at [GraphLab.com](graphlab.com)
 
 ## History
 In 2013, team that created GraphLab PowerGraph started the Seattle-based company, GraphLab, Inc. The learnings from GraphLab PowerGraph and GraphChi projects have culminated into GraphLab Create, a enterprise-class data science platform for data scientists and software engineers that can simplify building and deploying advanced machine learning models as a RESTful predictive service. See [GraphLab.com](graphlab.com) for more information. 
