@@ -261,7 +261,7 @@ max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
   //we only want uncolored (helps us color disconnected graph components)
   if (vtx.data().color == UNCOLORED) {
     max_deg_vertex_reducer red;
-    red.degree = vtx.num_in_edges() + vtx.num_out_edges();
+    red.degree = vtx.num_out_edges();
     red.vid = vtx.id();
     return red;
   }
@@ -382,29 +382,10 @@ int main(int argc, char** argv) {
         //sats.erase(x);
       }
     }
-
-    /*if (max_saturation == 0) {
-      current_saturation = 0;
-      engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_saturation);
-      engine.start();
-    }*/
+    engine.start();
     max_saturation = 0;
-    
-    
-    //Attempt to resolve connected components
-    // int old_colored = coloredvs;
-    // coloredvs = 0;
-    // graph.transform_vertices(get_colored);
-    // dc.cout() << "old = " << old_colored << " and new = " << coloredvs << std::endl;
-    // if (old_colored >= coloredvs) {
-    //   dc.cout() << "coloring next disconnected component..." << std::endl;
-    //   max_deg_vertex_reducer vnew = graph.map_reduce_vertices<max_deg_vertex_reducer>(find_max_deg_vertex);
-    //   engine.signal(vnew.vid);
-    // }
-    //coloredvs = 0;
-
-  }
-  engine.start();
+  } 
+  
   
   //engine.signal_all();
   //engine.start();
