@@ -32,7 +32,7 @@
 #include <graphlab.hpp>
 #include <graphlab/ui/metrics_server.hpp>
 #include <graphlab/macros_def.hpp>
-
+#include <cmath>  /* for std::abs(double) */
 
 typedef graphlab::vertex_id_type color_type;
 
@@ -61,10 +61,15 @@ typedef struct {
  */
 typedef graphlab::empty edge_data_type;
 bool EDGE_CONSISTENT = false;
+bool TRADE = false;
+
+size_t graph_size = 0;
+size_t fraction = 0;
 int max_degree = 0;
 int low_degree = INT_MAX;
 signed int current_degree;
 
+size_t already_signalled = 0;
 std::set<int> used_colors;
 std::set<int> degrees;
 /*
@@ -214,12 +219,13 @@ typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
 graphlab::empty signal_vertices_at_degree (engine_type::icontext_type& ctx,
                                      const graph_type::vertex_type& vertex) {
   if (vertex.data().degree == current_degree) {
+    already_signalled++;
     ctx.signal(vertex);
   }
   return graphlab::empty();
 }
 
-graphlab::empty signal_vertices_at_color (engine_type::icontext_type& ctx,
+graphlab::empty signal_uncolored (engine_type::icontext_type& ctx,
                                      const graph_type::vertex_type& vertex) {
   if (vertex.data().color == UNCOLORED) {
     ctx.signal(vertex);
@@ -256,6 +262,12 @@ size_t validate_conflict(graph_type::edge_type& edge) {
   return edge.source().data().color == edge.target().data().color;
 }
 
+inline bool isEqual(double x, double y)
+{
+  const double epsilon = 1e-5;/* some small number such as 1e-5 */;
+  return std::abs(x - y) <= epsilon * std::abs(x);
+  // see Knuth section 4.2.2 pages 217-218
+}
 
 int main(int argc, char** argv) {
 
@@ -276,6 +288,7 @@ int main(int argc, char** argv) {
   std::string output;
   float alpha = 2.1;
   size_t powerlaw = 0;
+  double trade = 0;
   clopts.attach_option("graph", prefix,
                        "Graph input. reads all graphs matching prefix*");
   clopts.attach_option("format", format,
@@ -284,11 +297,13 @@ int main(int argc, char** argv) {
                        "A prefix to save the output.");
    clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
-         clopts.attach_option("alpha", alpha,
+   clopts.attach_option("alpha", alpha,
                        "Alpha in powerlaw distrubution");
+  clopts.attach_option("trade", trade,
+                       "Execute tradeoff version. Probability of degree execution for node (0.0 to 1.0)");
   clopts.attach_option("edgescope", EDGE_CONSISTENT,
                        "Use Locking. ");
-    
+
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (prefix.length() == 0 && powerlaw == 0) {
     clopts.print_description();
@@ -298,11 +313,14 @@ int main(int argc, char** argv) {
     dc.cout() << "Warning! Output will not be saved\n";
   }
 
-
   graphlab::launch_metric_server();
   // load graph
   graph_type graph(dc, clopts);
 
+  if (!isEqual(0.0, trade)) {
+    TRADE = true;
+  }
+  
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
     graph.load_synthetic_powerlaw(powerlaw, false, alpha, 100000000);
@@ -339,36 +357,37 @@ int main(int argc, char** argv) {
   } 
   graphlab::async_consistent_engine<graph_coloring> engine(dc, graph, clopts);
 
-
+  if (TRADE) {
+    graph_size = graph.num_vertices();
+    fraction = (int) graph_size * trade;
+    dc.cout() << "Degree ordered coloring for " << fraction << " in " << graph_size << " vertices." << std::endl;
+  }
   for (int x = max_degree; x >= low_degree; x--){
     if (degrees.find(x) != degrees.end()) {
       //std::cout << "coloring vertices of degree " << x << std::endl;
       current_degree = x;
       engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_degree);  
+      if (TRADE) {
+        if(already_signalled >= fraction)
+          break;
+      }
     }
   }
 
   engine.start();
-  //engine.signal_all();
-  //engine.start();
 
+  if (TRADE) {
+    engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);  
+    engine.start();
+  }
 
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   if (conflict_count > 0) {
     dc.cout() << "Still uncolored, finalising..." << std::endl;
-    engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_color);
+    engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);
     engine.start();
     conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   }
-
-  // //Fails to color properly. Unsure why, can't be multiple components because other heurstics don't fail here.
-  // if (conflict_count != 0) {
-  //   dc.cout() << "Conflicts detected" <<std::endl;
-  //   used_colors.clear();
-  //   engine.signal_all();
-  //   engine.start();
-  //   conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
-  // }
 
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
   dc.cout() << "Colored using " << used_colors.size() << " colors" << std::endl;
@@ -388,3 +407,9 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
+
+//Degree no trade ytube 59 sec 33 colors
+//Degree 0.2 trade ytube 
+//Degree 0.3 trade ytube
+//Degree 0.4 trade ytube
+//Simple ytube
