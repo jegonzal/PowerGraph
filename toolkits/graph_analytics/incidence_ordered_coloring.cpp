@@ -66,7 +66,7 @@ bool EDGE_CONSISTENT = false;
 signed int max_incidence = 0;
 signed int current_incidence = 0;
 bool still_uncolored = true;
-
+bool next_component = false;
 unsigned int coloredvs = 0;
 std::set<int> used_colors;
 std::set<int> incs;
@@ -210,6 +210,7 @@ void get_colored(graph_type::vertex_type& v) {
 
 void calculate_incidence(graph_type::vertex_type& v) {
   if (v.data().incidence > 0 && v.data().color == UNCOLORED) {
+    next_component = false;
     incs.insert(v.data().incidence);
     if (v.data().incidence > max_incidence) {
       max_incidence = v.data().incidence;
@@ -238,6 +239,14 @@ typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
 graphlab::empty signal_vertices_at_incidence (engine_type::icontext_type& ctx,
                                      const graph_type::vertex_type& vertex) {
   if (vertex.data().incidence == current_incidence && vertex.data().color == UNCOLORED) {
+    ctx.signal(vertex);
+  }
+  return graphlab::empty();
+}
+
+graphlab::empty signal_uncolored (engine_type::icontext_type& ctx,
+                                     const graph_type::vertex_type& vertex) {
+  if (vertex.data().color == UNCOLORED) {
     ctx.signal(vertex);
   }
   return graphlab::empty();
@@ -368,7 +377,7 @@ int main(int argc, char** argv) {
 
   while (still_uncolored) {
     still_uncolored = false;
-    
+    next_component = true;
     //graph.transform_vertices(get_colored);
     graph.transform_vertices(calculate_incidence); 
     for (int x = max_incidence; x > 0; x--) {    
@@ -381,26 +390,17 @@ int main(int argc, char** argv) {
     }
     engine.start();
 
-    /*if (max_incidence == 0) {
-      current_incidence = 0;
-      engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_incidence);
+    //This algorithm colors the component with the highest degree and then colors all other components randomly
+    if (next_component) {
+      dc.cout() << "Colouring other components..." <<std::endl;
+      engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);
       engine.start();
-    }*/
-    max_incidence = 0;
-    
-    
-    //Attempt to resolve connected components
-    // int old_colored = coloredvs;
-    // coloredvs = 0;
-    // graph.transform_vertices(get_colored);
-    // dc.cout() << "old = " << old_colored << " and new = " << coloredvs << std::endl;
-    // if (old_colored >= coloredvs) {
-    //   dc.cout() << "coloring next disconnected component..." << std::endl;
-    //   max_deg_vertex_reducer vnew = graph.map_reduce_vertices<max_deg_vertex_reducer>(find_max_deg_vertex);
-    //   engine.signal(vnew.vid);
-    // }
-    //coloredvs = 0;
+      still_uncolored = false;
+      break;
+    }
 
+    max_incidence = 0;
+    incs.clear();
   }
 
   

@@ -68,8 +68,9 @@ bool EDGE_CONSISTENT = false;
 signed int max_saturation = 0;
 signed int current_saturation = 0;
 bool still_uncolored = true;
-
-unsigned int coloredvs = 0;
+bool next_component = false;
+unsigned int uncoloredvs = 0;
+unsigned int uncoloredvs_old = 0;
 std::set<int> used_colors;
 std::set<int> sats;
 /*
@@ -205,22 +206,23 @@ void initialize_vertex_values(graph_type::vertex_type& v) {
 }
 
 void get_colored(graph_type::vertex_type& v) {
-  if (v.data().color != UNCOLORED)
-    coloredvs++;
+  if (v.data().color == UNCOLORED)
+    uncoloredvs++;
 }
 
 void calculate_saturation(graph_type::vertex_type& v) {
   //v.data().saturation = v.data().adj_colors.size();
 
   if (v.data().saturation > 0 && v.data().color == UNCOLORED) {
+    next_component = false;
     sats.insert(v.data().saturation);
     if (v.data().saturation > max_saturation) {
       max_saturation = v.data().saturation;
     }
   }
-  if (v.data().color == UNCOLORED)
+  else if (v.data().color == UNCOLORED)
     still_uncolored = true;
-  }
+}
 
 
 /*
@@ -241,6 +243,14 @@ typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
 graphlab::empty signal_vertices_at_saturation (engine_type::icontext_type& ctx,
                                      const graph_type::vertex_type& vertex) {
   if (vertex.data().saturation == current_saturation && vertex.data().color == UNCOLORED) {
+    ctx.signal(vertex);
+  }
+  return graphlab::empty();
+}
+
+graphlab::empty signal_uncolored (engine_type::icontext_type& ctx,
+                                     const graph_type::vertex_type& vertex) {
+  if (vertex.data().color == UNCOLORED) {
     ctx.signal(vertex);
   }
   return graphlab::empty();
@@ -371,21 +381,30 @@ int main(int argc, char** argv) {
 
   while (still_uncolored) {
     still_uncolored = false;
-    //graph.transform_vertices(get_colored);
+    next_component = true;
     graph.transform_vertices(calculate_saturation); 
     for (int x = max_saturation; x > 0; x--) {    
       if (sats.find(x) != sats.end()) {
         //Distinguish between vertices of same saturation but different degree
-        //std::cout << "Current saturation = " << x << std::endl;
         current_saturation = x;
         engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_saturation);
         //sats.erase(x);
       }
     }
     engine.start();
+    
+    //This algorithm colors the component with the highest degree and then colors all other components randomly
+    if (next_component) {
+      dc.cout() << "Colouring other components..." <<std::endl;
+      engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);
+      engine.start();
+      still_uncolored = false;
+      break;
+    }
+
     max_saturation = 0;
+    sats.clear();
   } 
-  
   
   //engine.signal_all();
   //engine.start();
