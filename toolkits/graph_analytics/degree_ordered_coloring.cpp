@@ -23,9 +23,9 @@
 
 /*
  * Graph coloring algorithm, such that vertex programs are scheduled in 
- * order of vertex degree. This method shows a ~30% reduction in the 
- * number of colors used against simple_coloring.cpp
- *
+ * order of vertex degree. Includes trade-off featre for determining the
+ * fraction of the graph to conduct ordered execution over random execution,
+ * allowing user to specify run time - colour quality trade-off
  */
 
 #include <boost/unordered_set.hpp>
@@ -138,8 +138,6 @@ public:
     set_union_gather gather;
     color_type other_color = edge.source().id() == vertex.id() ?
                                  edge.target().data().color: edge.source().data().color;
-    // vertex_id_type otherid= edge.source().id() == vertex.id() ?
-    //                              edge.target().id(): edge.source().id();
 
     gather.colors.insert(other_color);
     return gather;
@@ -153,7 +151,6 @@ public:
              const gather_type& neighborhood) {
     // find the smallest color not described in the neighborhood
     size_t neighborhoodsize = neighborhood.colors.size();
-    //std::cout << "Proc Vertex " << vertex.id() << " with degree " << vertex.data().degree << std::endl;
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
         used_colors.insert(curcolor);
@@ -162,9 +159,6 @@ public:
       }
     }
   }
-
-  //Simple coloring 44 colors
-  //Advanced
 
   edge_dir_type scatter_edges(icontext_type& context,
                              const vertex_type& vertex) const {
@@ -197,7 +191,6 @@ void initialize_vertex_values(graph_type::vertex_type& v) {
     max_degree = v.data().degree;
   if (v.data().degree < low_degree)
     low_degree = v.data().degree;
-  //std::cout << "Degree of " << v.id() << " = " << v.data() << std::endl;
 }
 
 
@@ -216,7 +209,7 @@ struct save_colors{
 
 typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
 
-graphlab::empty signal_vertices_at_degree (engine_type::icontext_type& ctx,
+graphlab::empty signal_vertices_at_degree(engine_type::icontext_type& ctx,
                                      const graph_type::vertex_type& vertex) {
   if (vertex.data().degree == current_degree) {
     already_signalled++;
@@ -225,7 +218,7 @@ graphlab::empty signal_vertices_at_degree (engine_type::icontext_type& ctx,
   return graphlab::empty();
 }
 
-graphlab::empty signal_uncolored (engine_type::icontext_type& ctx,
+graphlab::empty signal_uncolored(engine_type::icontext_type& ctx,
                                      const graph_type::vertex_type& vertex) {
   if (vertex.data().color == UNCOLORED) {
     ctx.signal(vertex);
@@ -245,12 +238,10 @@ struct max_deg_vertex_reducer: public graphlab::IS_POD_TYPE {
 };
 
 max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
-  //if (vtx.data().color == UNCOLORED) {
-    max_deg_vertex_reducer red;
-    red.degree = vtx.num_out_edges();
-    red.vid = vtx.id();
-    return red;
-  //}
+  max_deg_vertex_reducer red;
+  red.degree = vtx.num_out_edges();
+  red.vid = vtx.id();
+  return red;
 }
 
 /**************************************************************************/
@@ -264,9 +255,8 @@ size_t validate_conflict(graph_type::edge_type& edge) {
 
 inline bool isEqual(double x, double y)
 {
-  const double epsilon = 1e-5;/* some small number such as 1e-5 */;
+  const double epsilon = 1e-5;
   return std::abs(x - y) <= epsilon * std::abs(x);
-  // see Knuth section 4.2.2 pages 217-218
 }
 
 int main(int argc, char** argv) {
@@ -345,7 +335,7 @@ int main(int argc, char** argv) {
   
   dc.cout() << "Initialising vertex data..." <<std::endl;
   graph.transform_vertices(initialize_vertex_values);
-  //degrees.insert(max_degree);
+ 
   dc.cout() << "Degrees range from "<< low_degree << " to " << max_degree << std::endl;
 
   // create engine to count the number of triangles
@@ -357,6 +347,7 @@ int main(int argc, char** argv) {
   } 
   graphlab::async_consistent_engine<graph_coloring> engine(dc, graph, clopts);
 
+  //Tradeoff between ordered and random vertex execution
   if (TRADE) {
     graph_size = graph.num_vertices();
     fraction = (int) graph_size * trade;
@@ -364,20 +355,21 @@ int main(int argc, char** argv) {
   }
   for (int x = max_degree; x >= low_degree; x--){
     if (degrees.find(x) != degrees.end()) {
-      //std::cout << "coloring vertices of degree " << x << std::endl;
       current_degree = x;
       engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_degree);  
       if (TRADE) {
+        //Already signalled vertices for degree ordered execution
         if(already_signalled >= fraction)
+          engine.start();
+          //Signal remaining vertices randomly
+          engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);  
+          engine.start();
           break;
       }
     }
   }
 
-  engine.start();
-
-  if (TRADE) {
-    engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);  
+  if (!TRADE) {
     engine.start();
   }
 
@@ -407,9 +399,3 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
-
-//Degree no trade ytube 59 sec 33 colors
-//Degree 0.2 trade ytube 
-//Degree 0.3 trade ytube
-//Degree 0.4 trade ytube
-//Simple ytube

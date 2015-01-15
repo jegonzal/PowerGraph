@@ -23,9 +23,8 @@
 
 /*
  * Graph coloring algorithm, such that vertex programs are scheduled in 
- * order of vertex degree. This method shows a ~30% reduction in the 
- * number of colors used against simple_coloring.cpp
- *
+ * order of saturation (number of differently colored adjacent nodes),
+ * in "waves" of execution
  */
 
 #include <boost/unordered_set.hpp>
@@ -139,9 +138,6 @@ public:
     set_union_gather gather;
     color_type other_color = edge.source().id() == vertex.id() ?
                                  edge.target().data().color: edge.source().data().color;
-    // vertex_id_type otherid= edge.source().id() == vertex.id() ?
-    //                              edge.target().id(): edge.source().id();
-
     gather.colors.insert(other_color);
 
     return gather;
@@ -155,8 +151,6 @@ public:
              const gather_type& neighborhood) {
     // find the smallest color not described in the neighborhood
     size_t neighborhoodsize = neighborhood.colors.size();
-    //vertex.data();
-    //std::cout << "Proc Vertex " << vertex.id() << " with degree " << vertex.data().degree << std::endl;
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
         used_colors.insert(curcolor);
@@ -205,13 +199,7 @@ void initialize_vertex_values(graph_type::vertex_type& v) {
   v.data().color = UNCOLORED;
 }
 
-void get_colored(graph_type::vertex_type& v) {
-  if (v.data().color == UNCOLORED)
-    uncoloredvs++;
-}
-
 void calculate_saturation(graph_type::vertex_type& v) {
-  //v.data().saturation = v.data().adj_colors.size();
 
   if (v.data().saturation > 0 && v.data().color == UNCOLORED) {
     next_component = false;
@@ -268,7 +256,7 @@ struct max_deg_vertex_reducer: public graphlab::IS_POD_TYPE {
 };
 
 max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
-  //we only want uncolored (helps us color disconnected graph components)
+  //we only want uncolored  
   if (vtx.data().color == UNCOLORED) {
     max_deg_vertex_reducer red;
     red.degree = vtx.num_out_edges();
@@ -371,29 +359,26 @@ int main(int argc, char** argv) {
   } 
   graphlab::async_consistent_engine<graph_coloring> engine(dc, graph, clopts);
 
-  //Find all components here?
-
   engine.signal(v.vid);
   engine.start();
 
-    
-      //std::cout << "coloring vertices of degree " << x << std::endl;
-
+  //Continue execution until all nodes are colored
   while (still_uncolored) {
     still_uncolored = false;
     next_component = true;
     graph.transform_vertices(calculate_saturation); 
     for (int x = max_saturation; x > 0; x--) {    
       if (sats.find(x) != sats.end()) {
-        //Distinguish between vertices of same saturation but different degree
         current_saturation = x;
         engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_saturation);
-        //sats.erase(x);
       }
     }
     engine.start();
     
-    //This algorithm colors the component with the highest degree and then colors all other components randomly
+    /*
+     *Colors the component with the highest degree and then colors all other components 
+     *randomly if the graph has more than one component.
+     */
     if (next_component) {
       dc.cout() << "Colouring other components..." <<std::endl;
       engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);
@@ -405,10 +390,6 @@ int main(int argc, char** argv) {
     max_saturation = 0;
     sats.clear();
   } 
-  
-  //engine.signal_all();
-  //engine.start();
-
 
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
 
