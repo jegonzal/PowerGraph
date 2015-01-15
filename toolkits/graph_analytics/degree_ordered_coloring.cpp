@@ -359,12 +359,13 @@ int main(int argc, char** argv) {
       engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_degree);  
       if (TRADE) {
         //Already signalled vertices for degree ordered execution
-        if(already_signalled >= fraction)
+        if(already_signalled >= fraction) {
           engine.start();
           //Signal remaining vertices randomly
           engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);  
           engine.start();
           break;
+        }
       }
     }
   }
