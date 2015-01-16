@@ -21,6 +21,12 @@
  */
 
 
+/*
+ * Graph coloring algorithm, such that vertex programs are scheduled in 
+ * order of saturation (number of differently colored adjacent nodes),
+ * in "waves" of execution
+ */
+
 #include <boost/unordered_set.hpp>
 #include <graphlab.hpp>
 #include <graphlab/ui/metrics_server.hpp>
@@ -30,12 +36,42 @@
 typedef graphlab::vertex_id_type color_type;
 
 /*
+ * Vertex data: color and degree of node
+ */
+typedef struct {
+  int color;
+  int saturation;
+  std::set<int> adj_colors;
+   // serialize
+  void save(graphlab::oarchive& oarc) const {
+    oarc << color << saturation << adj_colors;
+  }
+
+  // deserialize
+  void load(graphlab::iarchive& iarc) {
+    iarc >> color >> saturation >> adj_colors;
+  }
+
+} vertex_data_type;
+
+
+/*
  * no edge data
  */
+
+#define UNCOLORED -1
+
 typedef graphlab::empty edge_data_type;
 bool EDGE_CONSISTENT = false;
 
+signed int max_saturation = 0;
+signed int current_saturation = 0;
+bool still_uncolored = true;
+bool next_component = false;
+unsigned int uncoloredvs = 0;
+unsigned int uncoloredvs_old = 0;
 std::set<int> used_colors;
+std::set<int> sats;
 /*
  * This is the gathering type which accumulates an (unordered) set of
  * all neighboring colors 
@@ -70,11 +106,10 @@ struct set_union_gather {
     iarc >> colors;
   }
 };
-
 /*
  * Define the type of the graph
  */
-typedef graphlab::distributed_graph<color_type,
+typedef graphlab::distributed_graph<vertex_data_type,
                                     edge_data_type> graph_type;
 
 
@@ -102,10 +137,9 @@ public:
                      edge_type& edge) const {
     set_union_gather gather;
     color_type other_color = edge.source().id() == vertex.id() ?
-                                 edge.target().data(): edge.source().data();
-    // vertex_id_type otherid= edge.source().id() == vertex.id() ?
-    //                              edge.target().id(): edge.source().id();
-     gather.colors.insert(other_color);
+                                 edge.target().data().color: edge.source().data().color;
+    gather.colors.insert(other_color);
+
     return gather;
   }
 
@@ -120,12 +154,11 @@ public:
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
         used_colors.insert(curcolor);
-        vertex.data() = curcolor;
+        vertex.data().color = curcolor;
         break;
       }
     }
   }
-
 
   edge_dir_type scatter_edges(icontext_type& context,
                              const vertex_type& vertex) const {
@@ -143,14 +176,41 @@ public:
               const vertex_type& vertex,
               edge_type& edge) const {
     // both points have different colors!
-    if (edge.source().data() == edge.target().data()) {
+    if (edge.source().data().color == edge.target().data().color) {
       context.signal(edge.source().id() == vertex.id() ? 
                       edge.target() : edge.source());
     }
+
+    else if (vertex.id() == edge.target().id()) {
+      edge.source().data().adj_colors.insert(vertex.data().color);
+      edge.source().data().saturation = edge.source().data().adj_colors.size();
+    }
+    else {
+      edge.target().data().adj_colors.insert(vertex.data().color);
+      edge.target().data().saturation = edge.target().data().adj_colors.size();
+    }
+      
+    //}
   }
 };
 
+void initialize_vertex_values(graph_type::vertex_type& v) {
+  v.data().saturation = 0;
+  v.data().color = UNCOLORED;
+}
 
+void calculate_saturation(graph_type::vertex_type& v) {
+
+  if (v.data().saturation > 0 && v.data().color == UNCOLORED) {
+    next_component = false;
+    sats.insert(v.data().saturation);
+    if (v.data().saturation > max_saturation) {
+      max_saturation = v.data().saturation;
+    }
+  }
+  else if (v.data().color == UNCOLORED)
+    still_uncolored = true;
+}
 
 
 /*
@@ -159,13 +219,51 @@ public:
 struct save_colors{
   std::string save_vertex(graph_type::vertex_type v) { 
     return graphlab::tostr(v.id()) + "\t" +
-           graphlab::tostr(v.data()) + "\n";
+           graphlab::tostr(v.data().color) + "\n";
   }
   std::string save_edge(graph_type::edge_type e) {
     return "";
   }
 };
 
+typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
+
+graphlab::empty signal_vertices_at_saturation (engine_type::icontext_type& ctx,
+                                     const graph_type::vertex_type& vertex) {
+  if (vertex.data().saturation == current_saturation && vertex.data().color == UNCOLORED) {
+    ctx.signal(vertex);
+  }
+  return graphlab::empty();
+}
+
+graphlab::empty signal_uncolored (engine_type::icontext_type& ctx,
+                                     const graph_type::vertex_type& vertex) {
+  if (vertex.data().color == UNCOLORED) {
+    ctx.signal(vertex);
+  }
+  return graphlab::empty();
+}
+
+struct max_deg_vertex_reducer: public graphlab::IS_POD_TYPE {
+  size_t degree;
+  graphlab::vertex_id_type vid;
+  max_deg_vertex_reducer& operator+=(const max_deg_vertex_reducer& other) {
+    if (degree < other.degree) {
+      (*this) = other;
+    }
+    return (*this);
+  }
+};
+
+max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
+  //we only want uncolored  
+  if (vtx.data().color == UNCOLORED) {
+    max_deg_vertex_reducer red;
+    red.degree = vtx.num_out_edges();
+    red.vid = vtx.id();
+    return red;
+  }
+}
 
 /**************************************************************************/
 /*                                                                        */
@@ -173,7 +271,7 @@ struct save_colors{
 /*                                                                        */
 /**************************************************************************/
 size_t validate_conflict(graph_type::edge_type& edge) {
-  return edge.source().data() == edge.target().data();
+  return edge.source().data().color == edge.target().data().color;
 }
 
 
@@ -186,7 +284,7 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc;
 
 
-  dc.cout() << "This program computes a simple graph coloring of a"
+  dc.cout() << "This program computes a simple graph coloring of a "
             "provided graph.\n\n";
 
   graphlab::command_line_options clopts("Graph coloring. "
@@ -204,7 +302,7 @@ int main(int argc, char** argv) {
                        "A prefix to save the output.");
    clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
-      clopts.attach_option("alpha", alpha,
+   clopts.attach_option("alpha", alpha,
                        "Alpha in powerlaw distrubution");
   clopts.attach_option("edgescope", EDGE_CONSISTENT,
                        "Use Locking. ");
@@ -243,7 +341,15 @@ int main(int argc, char** argv) {
     << "Number of edges:    " << graph.num_edges() << std::endl;
 
   graphlab::timer ti;
+
   
+  dc.cout() << "Initialising vertex data..." <<std::endl;
+  graph.transform_vertices(initialize_vertex_values);
+
+  dc.cout() << "Finding max degree vertex..." << std::endl;
+  max_deg_vertex_reducer v = graph.map_reduce_vertices<max_deg_vertex_reducer>(find_max_deg_vertex);
+  
+
   // create engine to count the number of triangles
   dc.cout() << "Coloring..." << std::endl;
   if (EDGE_CONSISTENT) {
@@ -252,14 +358,43 @@ int main(int argc, char** argv) {
     clopts.get_engine_args().set_option("factorized", true);
   } 
   graphlab::async_consistent_engine<graph_coloring> engine(dc, graph, clopts);
-  engine.signal_all();
+
+  engine.signal(v.vid);
   engine.start();
 
+  //Continue execution until all nodes are colored
+  while (still_uncolored) {
+    still_uncolored = false;
+    next_component = true;
+    graph.transform_vertices(calculate_saturation); 
+    for (int x = max_saturation; x > 0; x--) {    
+      if (sats.find(x) != sats.end()) {
+        current_saturation = x;
+        engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_saturation);
+      }
+    }
+    engine.start();
+    
+    /*
+     *Colors the component with the highest degree and then colors all other components 
+     *randomly if the graph has more than one component.
+     */
+    if (next_component) {
+      dc.cout() << "Colouring other components..." <<std::endl;
+      engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);
+      engine.start();
+      still_uncolored = false;
+      break;
+    }
+
+    max_saturation = 0;
+    sats.clear();
+  } 
+
+  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
 
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
   dc.cout() << "Colored using " << used_colors.size() << " colors" << std::endl;
-		  
-  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
   if (output != "") {
     graph.save(output,
@@ -275,4 +410,3 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
-

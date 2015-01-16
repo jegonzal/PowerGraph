@@ -21,21 +21,57 @@
  */
 
 
+/*
+ * Graph coloring algorithm, such that vertex programs are scheduled in 
+ * order of vertex degree. Includes trade-off featre for determining the
+ * fraction of the graph to conduct ordered execution over random execution,
+ * allowing user to specify run time - colour quality trade-off
+ */
+
 #include <boost/unordered_set.hpp>
 #include <graphlab.hpp>
 #include <graphlab/ui/metrics_server.hpp>
 #include <graphlab/macros_def.hpp>
-
+#include <cmath>  /* for std::abs(double) */
 
 typedef graphlab::vertex_id_type color_type;
 
+/*
+ * Vertex data: color and degree of node
+ */
+typedef struct {
+  int color;
+  int degree;
+
+   // serialize
+  void save(graphlab::oarchive& oarc) const {
+    oarc << color << degree;
+  }
+
+  // deserialize
+  void load(graphlab::iarchive& iarc) {
+    iarc >> color >> degree;
+  }
+
+} vertex_data_type;
+
+#define UNCOLORED -1
 /*
  * no edge data
  */
 typedef graphlab::empty edge_data_type;
 bool EDGE_CONSISTENT = false;
+bool TRADE = false;
 
+size_t graph_size = 0;
+size_t fraction = 0;
+int max_degree = 0;
+int low_degree = INT_MAX;
+signed int current_degree;
+
+size_t already_signalled = 0;
 std::set<int> used_colors;
+std::set<int> degrees;
 /*
  * This is the gathering type which accumulates an (unordered) set of
  * all neighboring colors 
@@ -70,11 +106,10 @@ struct set_union_gather {
     iarc >> colors;
   }
 };
-
 /*
  * Define the type of the graph
  */
-typedef graphlab::distributed_graph<color_type,
+typedef graphlab::distributed_graph<vertex_data_type,
                                     edge_data_type> graph_type;
 
 
@@ -102,10 +137,9 @@ public:
                      edge_type& edge) const {
     set_union_gather gather;
     color_type other_color = edge.source().id() == vertex.id() ?
-                                 edge.target().data(): edge.source().data();
-    // vertex_id_type otherid= edge.source().id() == vertex.id() ?
-    //                              edge.target().id(): edge.source().id();
-     gather.colors.insert(other_color);
+                                 edge.target().data().color: edge.source().data().color;
+
+    gather.colors.insert(other_color);
     return gather;
   }
 
@@ -120,12 +154,11 @@ public:
     for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
       if (neighborhood.colors.count(curcolor) == 0) {
         used_colors.insert(curcolor);
-        vertex.data() = curcolor;
+        vertex.data().color = curcolor;
         break;
       }
     }
   }
-
 
   edge_dir_type scatter_edges(icontext_type& context,
                              const vertex_type& vertex) const {
@@ -143,14 +176,22 @@ public:
               const vertex_type& vertex,
               edge_type& edge) const {
     // both points have different colors!
-    if (edge.source().data() == edge.target().data()) {
+    if (edge.source().data().color == edge.target().data().color) {
       context.signal(edge.source().id() == vertex.id() ? 
                       edge.target() : edge.source());
     }
   }
 };
 
-
+void initialize_vertex_values(graph_type::vertex_type& v) {
+  v.data().degree = v.num_out_edges();
+  degrees.insert(v.data().degree);
+  v.data().color = UNCOLORED;
+  if (v.data().degree > max_degree)
+    max_degree = v.data().degree;
+  if (v.data().degree < low_degree)
+    low_degree = v.data().degree;
+}
 
 
 /*
@@ -159,13 +200,49 @@ public:
 struct save_colors{
   std::string save_vertex(graph_type::vertex_type v) { 
     return graphlab::tostr(v.id()) + "\t" +
-           graphlab::tostr(v.data()) + "\n";
+           graphlab::tostr(v.data().color) + "\n";
   }
   std::string save_edge(graph_type::edge_type e) {
     return "";
   }
 };
 
+typedef graphlab::async_consistent_engine<graph_coloring> engine_type;
+
+graphlab::empty signal_vertices_at_degree(engine_type::icontext_type& ctx,
+                                     const graph_type::vertex_type& vertex) {
+  if (vertex.data().degree == current_degree) {
+    already_signalled++;
+    ctx.signal(vertex);
+  }
+  return graphlab::empty();
+}
+
+graphlab::empty signal_uncolored(engine_type::icontext_type& ctx,
+                                     const graph_type::vertex_type& vertex) {
+  if (vertex.data().color == UNCOLORED) {
+    ctx.signal(vertex);
+  }
+  return graphlab::empty();
+}
+
+struct max_deg_vertex_reducer: public graphlab::IS_POD_TYPE {
+  size_t degree;
+  graphlab::vertex_id_type vid;
+  max_deg_vertex_reducer& operator+=(const max_deg_vertex_reducer& other) {
+    if (degree < other.degree) {
+      (*this) = other;
+    }
+    return (*this);
+  }
+};
+
+max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
+  max_deg_vertex_reducer red;
+  red.degree = vtx.num_out_edges();
+  red.vid = vtx.id();
+  return red;
+}
 
 /**************************************************************************/
 /*                                                                        */
@@ -173,9 +250,14 @@ struct save_colors{
 /*                                                                        */
 /**************************************************************************/
 size_t validate_conflict(graph_type::edge_type& edge) {
-  return edge.source().data() == edge.target().data();
+  return edge.source().data().color == edge.target().data().color;
 }
 
+inline bool isEqual(double x, double y)
+{
+  const double epsilon = 1e-5;
+  return std::abs(x - y) <= epsilon * std::abs(x);
+}
 
 int main(int argc, char** argv) {
 
@@ -196,6 +278,7 @@ int main(int argc, char** argv) {
   std::string output;
   float alpha = 2.1;
   size_t powerlaw = 0;
+  double trade = 0;
   clopts.attach_option("graph", prefix,
                        "Graph input. reads all graphs matching prefix*");
   clopts.attach_option("format", format,
@@ -204,11 +287,13 @@ int main(int argc, char** argv) {
                        "A prefix to save the output.");
    clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
-      clopts.attach_option("alpha", alpha,
+   clopts.attach_option("alpha", alpha,
                        "Alpha in powerlaw distrubution");
+  clopts.attach_option("trade", trade,
+                       "Execute tradeoff version. Probability of degree execution for node (0.0 to 1.0)");
   clopts.attach_option("edgescope", EDGE_CONSISTENT,
                        "Use Locking. ");
-    
+
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (prefix.length() == 0 && powerlaw == 0) {
     clopts.print_description();
@@ -218,11 +303,14 @@ int main(int argc, char** argv) {
     dc.cout() << "Warning! Output will not be saved\n";
   }
 
-
   graphlab::launch_metric_server();
   // load graph
   graph_type graph(dc, clopts);
 
+  if (!isEqual(0.0, trade)) {
+    TRADE = true;
+  }
+  
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
     graph.load_synthetic_powerlaw(powerlaw, false, alpha, 100000000);
@@ -243,7 +331,13 @@ int main(int argc, char** argv) {
     << "Number of edges:    " << graph.num_edges() << std::endl;
 
   graphlab::timer ti;
+
   
+  dc.cout() << "Initialising vertex data..." <<std::endl;
+  graph.transform_vertices(initialize_vertex_values);
+ 
+  dc.cout() << "Degrees range from "<< low_degree << " to " << max_degree << std::endl;
+
   // create engine to count the number of triangles
   dc.cout() << "Coloring..." << std::endl;
   if (EDGE_CONSISTENT) {
@@ -252,14 +346,45 @@ int main(int argc, char** argv) {
     clopts.get_engine_args().set_option("factorized", true);
   } 
   graphlab::async_consistent_engine<graph_coloring> engine(dc, graph, clopts);
-  engine.signal_all();
-  engine.start();
 
+  //Tradeoff between ordered and random vertex execution
+  if (TRADE) {
+    graph_size = graph.num_vertices();
+    fraction = (int) graph_size * trade;
+    dc.cout() << "Degree ordered coloring for " << fraction << " in " << graph_size << " vertices." << std::endl;
+  }
+  for (int x = max_degree; x >= low_degree; x--){
+    if (degrees.find(x) != degrees.end()) {
+      current_degree = x;
+      engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_degree);  
+      if (TRADE) {
+        //Already signalled vertices for degree ordered execution
+        if(already_signalled >= fraction) {
+          engine.start();
+          //Signal remaining vertices randomly
+          engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);  
+          engine.start();
+          break;
+        }
+      }
+    }
+  }
+
+  if (!TRADE) {
+    engine.start();
+  }
+
+  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+  if (conflict_count > 0) {
+    dc.cout() << "Still uncolored, finalising..." << std::endl;
+    engine.map_reduce_vertices<graphlab::empty>(signal_uncolored);
+    engine.start();
+    conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+  }
 
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
   dc.cout() << "Colored using " << used_colors.size() << " colors" << std::endl;
-		  
-  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
   if (output != "") {
     graph.save(output,
@@ -275,4 +400,3 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
-
