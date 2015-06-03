@@ -14,9 +14,6 @@
  *  express or implied.  See the License for the specific language
  *  governing permissions and limitations under the License.
  *
- * For more about this software visit:
- *
- *      http://www.graphlab.ml.cmu.edu
  *
  */
 
@@ -52,13 +49,12 @@
 /////////////////////////////////////////////////////////////////////////
 // Load the UAI file. Each factor as a different vertex
 void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string graph_file, int& nodes) 
-{
+{  
     // Not sure why this is needed
     dc.barrier();
-    
     // Open file
     ifstream in(graph_file.c_str());
-    
+     
     //CHECK(in.good(),"Could not open file: "+graph_file);
     CHECK(in.good());
     
@@ -74,8 +70,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
     in >> nnodes;
     nodes = nnodes;
     //CHECK(nnodes>0, "No. of nodes can't be negative. Are you sure this is a typeUAI energy file?");
-    CHECK(nnodes>0);
-        
+    CHECK(nnodes>0);    
     // Read node cardinalities
     vector<int> cardinalities(nnodes,0);
     int cardinality_i, sum_of_cardinalities = 0;
@@ -84,12 +79,24 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
         in >> cardinality_i;
         cardinalities[i] = cardinality_i;
         sum_of_cardinalities += cardinality_i;
-        
-        //cout << cardinalities[i] << " ";
+       
         //CHECK(in.good(), "Could not finish reading cardinalities. Are you sure this is a typeUAI energy file?");
         CHECK(in.good());
     }
-    
+
+    int vid = 0;
+    if(opts.algorithm != 0){
+       for(int i = 0; i < nnodes; i++){                      //temporary .. put condition
+           vertex_data vdata;
+           vdata.factor_type = VAR; 
+           vdata.nvars = 1;
+           vdata.cards.resize(1, cardinalities[i]);
+           vdata.potentials.setZero(cardinalities[i]);
+           vdata.beliefs.setConstant(cardinalities[i], 0.5);
+           graph.add_vertex(vid, vdata);
+           vid++;
+       }
+    }
     // Read no. of factors
     in >> nfactors;
     
@@ -134,8 +141,12 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
         vdata.nvars = factor_size[i];
         if (vdata.nvars > 1) {
           vdata.degree = vdata.nvars; // Factor degree.
+          vdata.factor_type = DENSE;
         }
-        
+        else {
+          vdata.degree = 1; // Factor degree.
+          vdata.factor_type = XOR;
+        }
         vdata.cards.resize(factor_size[i]);
         vdata.neighbors.resize(factor_size[i]);
         
@@ -151,14 +162,14 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
             cardprod2 *= vdata.cards[j];
                       
             // Also create edge structs here
-            if (factor_size[i]>1)
-            {
+            //if (factor_size[i]>1)
+           // {
                 varid[j] = factor_memb[i][j];
                 card[j] = cardinalities[varid[j]];
                 edata[j].multiplier_messages.setZero(card[j]);
                 edata[j].local_messages.setZero(card[j]);
                 edata[j].potentials.setZero(card[j]);
-            }
+          //  }
         }
         
         //CHECK_EQ(cardprod, cardprod2, "Incorrectly sized factor");
@@ -185,6 +196,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
         }
         
         //CHECK(in.good(), "Could not finish reading factor tables. Are you sure this is a typeUAI energy file?");
+
         CHECK(in.good());
          
 
@@ -193,11 +205,15 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
         if (i%dc.numprocs() != dc.procid()) 
             continue;
         
-        // If all is well, add vertex and edges
-        graph.add_vertex(i,vdata);
-        if (factor_size[i] > 1) // if not a unary, add edges to unaries
-            for (int j=0; j!=factor_size[i]; ++j) 
-                graph.add_edge(i,varid[j],edata[j]);
+        // If all is well, add vertex and edge
+        graph.add_vertex(vid ,vdata);
+
+        if (factor_size[i] > 1 || opts.algorithm > 0) // if not a unary, add edges to unaries
+        for (int j=0; j!=factor_size[i]; ++j) 
+            graph.add_edge(vid,varid[j],edata[j]);
+        
+        //after adding everything increment vertex id
+        vid++; 
         
         if (opts.verbose > 1)
         {
@@ -214,7 +230,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
         }
         
     } // End of reading factors     
-    
+   
     dc.barrier();
 } // end of loading UAI file
 
@@ -227,26 +243,32 @@ bool line_parser(graph_type& graph, const std::string& filename, const std::stri
     vdata.dual_contrib = 0.0;
     string type;
     strm >> type;
-     if(type == "u") { 
+ 
+     if(type == "v") { 
+      vdata.factor_type = VAR;
       vdata.nvars = 1;
       vdata.cards.resize(1);
       strm>>vid;
       strm >> vdata.cards[0];
       vdata.potentials.resize(vdata.cards[0]);
-      vdata.beliefs.setOnes(vdata.cards[0]);
-      vdata.beliefs /= vdata.cards[0];
+      //vdata.beliefs.setOnes(vdata.cards[0]);
+      //vdata.beliefs /= vdata.cards[0];
+      vdata.beliefs.setConstant(vdata.cards[0], 0.5);
       vdata.unary_degree.resize(vdata.cards[0], 0);
-      for(int i=0; i< vdata.cards[0]; i++){
-         strm>>vdata.potentials[i];
-         vdata.potentials[i] = log10(vdata.potentials[i]);
+      //for(int i=0; i< vdata.cards[0]; i++){
+      // strm>>vdata.potentials[i];
+      //   vdata.potentials[i] = log10(vdata.potentials[i]);
          
-         }
-         vdata.potentials.maxCoeff(&vdata.best_configuration);
+      //   }
+     //    vdata.potentials.maxCoeff(&vdata.best_configuration);
       graph.add_vertex(vid,vdata);
     }
-   else if(type == "d") {
-     vdata.factor_type = 0;
+   else if(type == "d" || type == "u") {
+     vdata.factor_type = (type=="d")?DENSE:XOR;
+     if(vdata.factor_type == DENSE)
      strm>>vdata.nvars;
+     else 
+     vdata.nvars = 1;
      strm>>vid;
      vdata.neighbors.resize(vdata.nvars);
      vdata.cards.resize(vdata.nvars);
@@ -262,6 +284,7 @@ bool line_parser(graph_type& graph, const std::string& filename, const std::stri
      vdata.potentials.setZero(cardprod);
      vdata.beliefs.setOnes(cardprod);
      vdata.beliefs /=cardsum;
+     //vdata.beliefs.setConstant(cardprod, 0.5);
      vdata.factor_beliefs.setOnes(cardprod);
      vdata.factor_beliefs /= cardprod;
      for(int i=0; i<cardprod; i++){
@@ -279,7 +302,7 @@ bool line_parser(graph_type& graph, const std::string& filename, const std::stri
      }  
    }
    else if(type == "b") {
-   vdata.factor_type = 1;
+   vdata.factor_type = BUDGET;
      strm>>vdata.nvars;
      strm>>vid;
      vdata.neighbors.resize(vdata.nvars);
@@ -302,6 +325,7 @@ bool line_parser(graph_type& graph, const std::string& filename, const std::stri
         graph.add_edge(vid, vdata.neighbors[i], edata);
      } 
     }
+    return true;
  }
 /* end of graph loading functions */
 
@@ -315,17 +339,35 @@ void compute_degree(graph_type::vertex_type& vertex)
 }
 
 void dist_unary_potentials(graph_type::edge_type& edge)
-{ vertex_data& vdata = (edge.source().data().nvars == 1)?edge.source().data():edge.target().data();
+{ vertex_data& vdata = (edge.source().data().factor_type == VAR)?edge.source().data():edge.target().data();
   edge.data().potentials = vdata.potentials/vdata.degree;
  
 }
+struct gather_potentials{
+   vector<int> degree;
+   vec potentials;
+
+    void load(graphlab::iarchive& arc) {
+        arc >>degree>>potentials;
+    }
+    void save(graphlab::oarchive& arc) const {
+        arc <<degree<<potentials;
+    }
+
+gather_potentials& operator+=(const gather_potentials& other)
+{ degree += other.degree;
+   potentials += other.potentials;
+   return *this;
+ } 
+
+};
 
 /* Brief In case of graphs with budget factors degree cannot be determined 
 * simply by transform function. A separate vertex program iteration is 
 * required. compute_degree_budget computes degree of each vertex and 
 * divides unary potentials accordingly. */
 struct compute_degree_budget : 
-public graphlab::ivertex_program< graph_type, vector<int>,
+public graphlab::ivertex_program< graph_type, gather_potentials,
 graphlab::messages::sum_priority >,
 public graphlab::IS_POD_TYPE {
 
@@ -334,41 +376,53 @@ edge_dir_type gather_edges(icontext_type& context,
     {  return graphlab::ALL_EDGES; 
      };
 
-vector<int> gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const 
+gather_potentials gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const 
      { 
        const vertex_data& vdata = vertex.data();
        const vertex_type& other_vertex = (edge.source().id() == vertex.id())?edge.target():edge.source();
-       if(vdata.nvars == 1)  {
-          if(other_vertex.data().factor_type == 0){
-            vector<int> degree;
-            degree.resize(vdata.potentials.size(),1);
-            return degree; }
-          
-          else if(other_vertex.data().factor_type == 1){
-            vector<int> degree;
-            degree.resize(vdata.potentials.size(), 0);
-            int index_neighbor = -1;
-            for(int i=0; i< other_vertex.data().nvars; i++){
-              if(other_vertex.data().neighbors[i] == vertex.id()){
-                index_neighbor = i;
-                break;}
-             }
-           
-           degree[other_vertex.data().bound_states[index_neighbor]] = 1;
-           return degree;}
-           }
-         else {
-         vector<int> degree(1, 0);
-         return degree; }
-          
-       };
+       vector <int> degree;
+       vec potentials;
        
-void apply(icontext_type& context, vertex_type& vertex, const vector<int>& total)
-     { vertex_data& vdata =  vertex.data();
-       if(vdata.nvars == 1) {
-          vdata.unary_degree = total;
-          }
+       if(vdata.factor_type == VAR)  {
+          potentials.resize(vdata.cards[0]);
+          potentials.setZero();
+          switch(other_vertex.data().factor_type){
+          case XOR : potentials = other_vertex.data().potentials;
+       
+          case DENSE : degree.resize(vdata.potentials.size(),1);
+       
+                       break;
           
+          case BUDGET : degree.resize(vdata.potentials.size(), 0);
+                        int index_neighbor = -1;
+                        for(int i=0; i< other_vertex.data().nvars; i++){
+                            if(other_vertex.data().neighbors[i] == vertex.id()){
+                               index_neighbor = i;
+                               break;
+                              }
+                        }
+       
+                       degree[other_vertex.data().bound_states[index_neighbor]] = 1;
+          }
+       }
+       else {
+         degree.resize(1);
+         potentials.resize(1);
+       
+       }   
+       gather_potentials gather_data;
+       gather_data.degree  = degree;
+       gather_data.potentials = potentials;
+       return gather_data; 
+     };
+       
+void apply(icontext_type& context, vertex_type& vertex, const gather_potentials& total)
+     { vertex_data& vdata =  vertex.data();
+       if(vdata.factor_type == VAR) {
+          vdata.unary_degree = total.degree;
+          vdata.potentials = total.potentials;
+         } 
+    
       };
 
 edge_dir_type scatter_edges(icontext_type& context,
@@ -379,13 +433,13 @@ edge_dir_type scatter_edges(icontext_type& context,
 void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const 
      { const vertex_data& vdata = vertex.data();
        const vertex_type& other_vertex = (edge.source().id() == vertex.id())?edge.target():edge.source();
-       if(vdata.nvars == 1) {  
-          if(other_vertex.data().factor_type == 0) {
+       if(vdata.factor_type == VAR) {  
+          if(other_vertex.data().factor_type != BUDGET) {
              for(int i =0; i< vdata.potentials.size(); i++){
                edge.data().potentials[i] = vdata.potentials[i]/vdata.unary_degree[i];
                }
            }
-          else if(other_vertex.data().factor_type == 1) {
+          else if(other_vertex.data().factor_type == BUDGET) {
                int index_neighbor = -1;
                edge.data().potentials.setZero();
                for(int i=0; i< other_vertex.data().nvars; i++){
@@ -396,10 +450,11 @@ void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge)
                int state_index = other_vertex.data().bound_states[index_neighbor];
                edge.data().potentials[state_index]  = vdata.potentials[state_index]/vdata.unary_degree[state_index];
               }
-            }
-                     
+            }  
+           //cout<<"complete scatter"<<endl;          
        };
-}; /*end of compute_degree_budget */
+};
+
 
 ////////////////////////////////////////////////////////////////////////////
 // Graph writer class for saving MAP values. Only unary vertices are saved.
@@ -407,7 +462,7 @@ class graph_writer {
 public:
 std::string save_vertex(graph_type::vertex_type v) {
 std::stringstream strm;
-if(v.data().nvars == 1)
+if(v.data().factor_type == VAR)
 strm << v.id() << "\t" << v.data().best_configuration<< "\n";
 return strm.str();
  }
@@ -447,11 +502,12 @@ void run_dd_symmetric(graphlab::distributed_control& dc, graph_type& graph,
     
     void run_dd_projected(graphlab::distributed_control& dc, graph_type& graph, 
                    std::string exec_type, graphlab::command_line_options clopts){
-     // Define the engine.    
-    typedef graphlab::omni_engine<dd_vertex_program_projected> engine_type;
+   
     // Instantiate the engine object
     graph.transform_vertices(compute_degree);
     graph.transform_edges(dist_unary_potentials);
+     // Define the engine.    
+    typedef graphlab::omni_engine<dd_vertex_program_projected> engine_type;
     engine_type engine(dc, graph, opts.exec_type, clopts);
     engine.signal_all();
     graphlab::timer timer;    

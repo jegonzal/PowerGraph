@@ -14,9 +14,6 @@
  *  express or implied.  See the License for the specific language
  *  governing permissions and limitations under the License.
  *
- * For more about this software visit:
- *
- *      http://www.graphlab.ml.cmu.edu
  *
  */
 
@@ -97,8 +94,16 @@ void Maximize(vertex_type& vertex, vec additional_log_potentials, vec variable_l
   }
 
  
- void DeleteConfiguration(Configuration &configuration) {
-    configuration = -1;
+   // Delete configuration.
+ void DeleteConfiguration(Configuration *configuration) {
+    Configuration *conf = configuration;
+    delete conf;
+  }
+  
+void DeleteConfiguration(vector <Configuration*> configuration) {
+    for(int i=0; i< configuration.size(); i++){
+    Configuration *conf = configuration[i];
+    delete conf;}
   }
 
 /**
@@ -351,15 +356,13 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
 
    vec additional_log_potentials = vdata.potentials;
    vec variable_log_potentials = total.neighbor_distribution + total.messages;      
-   vector <Configuration> active_set_;
-   vector<double> distribution_;
-   vector<double> inverse_A_;
+   
   // Initialize the active set.
   
-   if (active_set_.size() == 0) {
+   if (vdata.active_set_.size() == 0) {
     variable_posteriors.resize(variable_log_potentials.size());     
     additional_posteriors.resize(additional_log_potentials.size()); 
-    distribution_.clear();
+    vdata.distribution_.clear();
     // Initialize by solving the LP, discarding the quadratic
     // term.
     Configuration configuration = -1;
@@ -367,16 +370,16 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
     Maximize(vertex, additional_log_potentials, variable_log_potentials,
              configuration,
              &value);
-    active_set_.push_back(configuration);
-    distribution_.push_back(1.0);
+    vdata.active_set_.push_back(configuration);
+    vdata.distribution_.push_back(1.0);
 
     // Initialize inv(A) as [-M,1;1,0].
-    inverse_A_.resize(4);
-    inverse_A_[0] = static_cast<double>(
+    vdata.inverse_A_.resize(4);
+    vdata.inverse_A_[0] = static_cast<double>(
         -CountCommonValues(vertex,configuration, configuration));
-    inverse_A_[1] = 1;
-    inverse_A_[2] = 1;
-    inverse_A_[3] = 0;
+    vdata.inverse_A_[1] = 1;
+    vdata.inverse_A_[2] = 1;
+    vdata.inverse_A_[3] = 0;
   }
 
   bool changed_active_set = true;
@@ -388,10 +391,10 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
     bool unbounded = false;
     if (changed_active_set) {
       // Recompute vector b.
-      vector<double> b(active_set_.size() + 1, 0.0);
+      vector<double> b(vdata.active_set_.size() + 1, 0.0);
       b[0] = 1.0;
-      for (int i = 0; i < active_set_.size(); ++i) {
-        const Configuration &configuration = active_set_[i];
+      for (int i = 0; i < vdata.active_set_.size(); ++i) {
+        const Configuration &configuration = vdata.active_set_[i];
         double score;
         Evaluate(vertex, additional_log_potentials, variable_log_potentials,
                  configuration,
@@ -399,17 +402,17 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
         b[i+1] = score;
       }
       // Solve the system Az = b.
-      z.resize(active_set_.size());
-      int size_A = active_set_.size() + 1;
-      for (int i = 0; i < active_set_.size(); ++i) {
+      z.resize(vdata.active_set_.size());
+      int size_A = vdata.active_set_.size() + 1;
+      for (int i = 0; i < vdata.active_set_.size(); ++i) {
         z[i] = 0.0;
         for (int j = 0; j < size_A; ++j) {
-          z[i] += inverse_A_[(i+1) * size_A + j] * b[j];
+          z[i] += vdata.inverse_A_[(i+1) * size_A + j] * b[j];
         }
       }
       tau = 0.0;
       for (int j = 0; j < size_A; ++j) {
-        tau += inverse_A_[j] * b[j];
+        tau += vdata.inverse_A_[j] * b[j];
       }
 
       same_as_before = false;
@@ -418,7 +421,7 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
     if (same_as_before) {
       // Compute the variable marginals from the full distribution
       // stored in z.
-      ComputeMarginalsFromSparseDistribution(vertex, active_set_,
+      ComputeMarginalsFromSparseDistribution(vertex, vdata.active_set_,
                                              z,
                                              variable_posteriors,
                                              additional_posteriors);
@@ -439,17 +442,17 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
       if (value <= tau + very_small_threshold) { // value <= tau.
         // We have found the solution;
         // the distribution, active set, and inv(A) are cached for the next round.
-        DeleteConfiguration(configuration);
+        //DeleteConfiguration(configuration);
         return;
       } else {
-        for (int k = 0; k < active_set_.size(); ++k) {
+        for (int k = 0; k < vdata.active_set_.size(); ++k) {
           // This is expensive and should just be a sanity check.
           // However, in practice, numerical issues force an already existing
           // configuration to try to be added. Therefore, we always check
           // if a configuration already exists before inserting it.
           // If it does, that means the active set method converged to a
           // solution (but numerical issues had prevented us to see it.)
-          if (active_set_[k] == configuration) {                         
+          if (vdata.active_set_[k] == configuration) {                         
             if (opts.verbose > 2) {
               cout << "Warning: value - tau = "
                    << value - tau << " " << value << " " << tau
@@ -458,27 +461,27 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
             // We have found the solution;
             // the distribution, active set, and inv(A)
             // are cached for the next round.
-            DeleteConfiguration(configuration);
+            //DeleteConfiguration(configuration);
 
             // Just in case, clean the cache.
             // This may prevent eventual numerical problems in the future.
-            for (int j = 0; j < active_set_.size(); ++j) {
+            for (int j = 0; j < vdata.active_set_.size(); ++j) {
               if (j == k) continue; // This configuration was deleted already.
-              DeleteConfiguration(active_set_[j]);
+              //DeleteConfiguration(active_set_[j]);
             }
-            active_set_.clear();
-            inverse_A_.clear();
-            distribution_.clear();
+            vdata.active_set_.clear();
+            vdata.inverse_A_.clear();
+            vdata.distribution_.clear();
 
             // Return.
             return;
           }
         }
         z.push_back(0.0);
-        distribution_ = z;
+        vdata.distribution_ = z;
 
         // Update inv(A).
-        bool singular = !InvertAfterInsertion(vertex, inverse_A_, active_set_, configuration);
+        bool singular = !InvertAfterInsertion(vertex, vdata.inverse_A_, vdata.active_set_, configuration);
         if (singular) {
           // If adding a new configuration causes the matrix to be singular,
           // don't just add it. Instead, look for a configuration in the null
@@ -491,36 +494,36 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
           // TODO: I think there is a graph interpretation for this problem.
           // Maybe some specialized graph algorithm is cheaper than doing
           // the eigendecomposition.
-          vector<double> similarities(active_set_.size() * active_set_.size());
-          ComputeActiveSetSimilarities(vertex, active_set_, &similarities);
+          vector<double> similarities(vdata.active_set_.size() * vdata.active_set_.size());
+          ComputeActiveSetSimilarities(vertex,vdata.active_set_, &similarities);
           
           //cout<<"compute active similarities in solveQP .."<<endl;
-          vector<double> padded_similarities((active_set_.size()+2) * 
-                                             (active_set_.size()+2), 1.0);
-          for (int i = 0; i < active_set_.size(); ++i) {
-            for (int j = 0; j < active_set_.size(); ++j) {
-              padded_similarities[(i+1)*(active_set_.size()+2) + (j+1)] =
-                  similarities[i*active_set_.size() + j];
+          vector<double> padded_similarities((vdata.active_set_.size()+2) * 
+                                             (vdata.active_set_.size()+2), 1.0);
+          for (int i = 0; i < vdata.active_set_.size(); ++i) {
+            for (int j = 0; j < vdata.active_set_.size(); ++j) {
+              padded_similarities[(i+1)*(vdata.active_set_.size()+2) + (j+1)] =
+                  similarities[i*vdata.active_set_.size() + j];
             }
           }
           padded_similarities[0] = 0.0;
-          for (int i = 0; i < active_set_.size(); ++i) {
+          for (int i = 0; i < vdata.active_set_.size(); ++i) {
             double value = static_cast<double>(
-                CountCommonValues(vertex, configuration, active_set_[i]));
-            padded_similarities[(i+1)*(active_set_.size()+2) +
-                                (active_set_.size()+1)] = value;
-            padded_similarities[(active_set_.size()+1)*(active_set_.size()+2) +
+                CountCommonValues(vertex, configuration, vdata.active_set_[i]));
+            padded_similarities[(i+1)*(vdata.active_set_.size()+2) +
+                                (vdata.active_set_.size()+1)] = value;
+            padded_similarities[(vdata.active_set_.size()+1)*(vdata.active_set_.size()+2) +
                                 (i+1)] = value;
           }
           double value = static_cast<double>(
               CountCommonValues(vertex, configuration, configuration));
-          padded_similarities[(active_set_.size()+1)*(active_set_.size()+2) +
-                              (active_set_.size()+1)] = value;
+          padded_similarities[(vdata.active_set_.size()+1)*(vdata.active_set_.size()+2) +
+                              (vdata.active_set_.size()+1)] = value;
 
-          vector<double> eigenvalues(active_set_.size()+2);
+          vector<double> eigenvalues(vdata.active_set_.size()+2);
           EigenDecompose(&padded_similarities, &eigenvalues);
           int zero_eigenvalue = -1;
-          for (int i = 0; i < active_set_.size()+2; ++i) {
+          for (int i = 0; i < vdata.active_set_.size()+2; ++i) {
             if (NEARLY_EQ_TOL(eigenvalues[i], 0.0, 1e-9)) {
               if (zero_eigenvalue >= 0) {
                 // If this happens, something failed. Maybe a numerical problem
@@ -531,12 +534,12 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
                      << eigenvalues[i] << endl;
                 cout << "Warning: Giving up." << endl;
                 // Clean the cache.
-                for (int j = 0; j < active_set_.size(); ++j) {
-                  DeleteConfiguration(active_set_[j]);
+                for (int j = 0; j < vdata.active_set_.size(); ++j) {
+                  //DeleteConfiguration(active_set_[j]);
                 }
-                active_set_.clear();
-                inverse_A_.clear();
-                distribution_.clear();
+                vdata.active_set_.clear();
+                vdata.inverse_A_.clear();
+                vdata.distribution_.clear();
                 return;
               }
               zero_eigenvalue = i;
@@ -544,28 +547,28 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
           }
           assert(zero_eigenvalue >= 0);
           vector<int> configurations_to_remove;
-          for (int j = 1; j < active_set_.size()+1; ++j) {
-            double value = padded_similarities[zero_eigenvalue*(active_set_.size()+2) + j];
+          for (int j = 1; j < vdata.active_set_.size()+1; ++j) {
+            double value = padded_similarities[zero_eigenvalue*(vdata.active_set_.size()+2) + j];
             if (!NEARLY_EQ_TOL(value, 0.0, 1e-9)) {
               configurations_to_remove.push_back(j-1);
             }
           }
           if (opts.verbose > 2) {
             cout << "Pick a configuration to remove (" << configurations_to_remove.size()
-                 << " out of " << active_set_.size() << ")." << endl;
+                 << " out of " << vdata.active_set_.size() << ")." << endl;
           }
 
           assert(configurations_to_remove.size() >= 1);
           int j = configurations_to_remove[0];
 
           // Update inv(A).
-          InvertAfterRemoval(inverse_A_, active_set_, j);
+          InvertAfterRemoval(vdata.inverse_A_, vdata.active_set_, j);
 
           // Remove blocking constraint from the active set.
-          DeleteConfiguration(active_set_[j]); // Delete configutation.
-          active_set_.erase(active_set_.begin() + j);
+          //DeleteConfiguration(active_set_[j]); // Delete configutation.
+          vdata.active_set_.erase(vdata.active_set_.begin() + j);
 
-          singular = !InvertAfterInsertion(vertex, inverse_A_, active_set_, configuration);
+          singular = !InvertAfterInsertion(vertex, vdata.inverse_A_, vdata.active_set_, configuration);
           assert(!singular);
         }
 
@@ -574,7 +577,7 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
           cout << "Inserted one element to the active set (iteration "
                << iter << ")." << endl;
         }
-        active_set_.push_back(configuration);
+        vdata.active_set_.push_back(configuration);
         changed_active_set = true;
       }      
     } else {
@@ -583,11 +586,11 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
       int blocking = -1;
       bool exist_blocking = false;
       double alpha = 1.0;
-      for (int i = 0; i < active_set_.size(); ++i) {
-        assert(distribution_[i] >= -1e-12);
-        if (z[i] >= distribution_[i]) continue;
+      for (int i = 0; i < vdata.active_set_.size(); ++i) {
+        assert(vdata.distribution_[i] >= -1e-12);
+        if (z[i] >= vdata.distribution_[i]) continue;
         if (z[i] < 0) exist_blocking = true;
-        double tmp = distribution_[i] / (distribution_[i] - z[i]);
+        double tmp = vdata.distribution_[i] / (vdata.distribution_[i] - z[i]);
         if (blocking < 0 || tmp < alpha) {
           alpha = tmp;
           blocking = i;
@@ -597,23 +600,23 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
       if (!exist_blocking) {
         // No blocking constraints.
         assert(!unbounded);
-        distribution_ = z;
+        vdata.distribution_ = z;
         alpha = 1.0;
         changed_active_set = false;
       } else {
         if (alpha > 1.0 && !unbounded) alpha = 1.0;
         // Interpolate between factor_posteriors_[i] and z.
         if (alpha == 1.0) {
-          distribution_ = z;
+          vdata.distribution_ = z;
         } else {
-          for (int i = 0; i < active_set_.size(); ++i) {
-            z[i] = (1 - alpha) * distribution_[i] + alpha * z[i];
-            distribution_[i] = z[i];
+          for (int i = 0; i < vdata.active_set_.size(); ++i) {
+            z[i] = (1 - alpha) * vdata.distribution_[i] + alpha * z[i];
+            vdata.distribution_[i] = z[i];
           }
         }
 
         // Update inv(A).
-        InvertAfterRemoval(inverse_A_, active_set_, blocking);
+        InvertAfterRemoval(vdata.inverse_A_, vdata.active_set_, blocking);
 
         // Remove blocking constraint from the active set.
         if (opts.verbose > 2) {
@@ -621,14 +624,14 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
                << iter << ")." << endl;
         }
 
-        DeleteConfiguration(active_set_[blocking]); // Delete configutation.
-        active_set_.erase(active_set_.begin() + blocking);
+        //DeleteConfiguration(active_set_[blocking]); // Delete configutation.
+        vdata.active_set_.erase(vdata.active_set_.begin() + blocking);
 
         z.erase(z.begin() + blocking);
-        distribution_.erase(distribution_.begin() + blocking);
+        vdata.distribution_.erase(vdata.distribution_.begin() + blocking);
         changed_active_set = true;
-        for (int i = 0; i < distribution_.size(); ++i) {
-          assert(distribution_[i] > -1e-16);
+        for (int i = 0; i < vdata.distribution_.size(); ++i) {
+          assert(vdata.distribution_[i] > -1e-16);
         }
       }
     }
@@ -638,12 +641,12 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
   // Return the best existing solution by computing the variable marginals 
   // from the full distribution stored in z.
   //assert(false);
-  ComputeMarginalsFromSparseDistribution(vertex, active_set_,
+  ComputeMarginalsFromSparseDistribution(vertex, vdata.active_set_,
                                          z,
                                          variable_posteriors,
                                          additional_posteriors); 
+
   }
-  
   
   void InsertionSort(pair<double, int> arr[], int length) {
   int i, j;
@@ -812,8 +815,7 @@ void SolveQP_budget(vertex_type& vertex,const gather_type& total,
             vec& variable_posteriors, vec& additional_posteriors){
             
   vertex_data& vdata =  vertex.data();
-  vec variable_log_potentials = total.neighbor_distribution + total.messages;                  
-  vector<pair<double,int> > last_sort_;
+  vec variable_log_potentials = total.neighbor_distribution + total.messages;
   for (int f = 0; f < variable_log_potentials.size(); ++f) {
     variable_posteriors[f] = variable_log_potentials[f];
     if (variable_posteriors[f] < 0.0) {
@@ -832,9 +834,9 @@ void SolveQP_budget(vertex_type& vertex,const gather_type& total,
     for (int f = 0; f < variable_log_potentials.size(); ++f) {
       variable_posteriors[f] = variable_log_potentials[f];
     }
-    project_onto_budget_constraint(variable_posteriors, 
+    project_onto_budget_constraint_cached(variable_posteriors, 
                                           variable_log_potentials.size(), 
-                                          static_cast<double>(vdata.budget));
+                                          static_cast<double>(vdata.budget), vdata.last_sort_);
   }
 }
 
@@ -913,14 +915,91 @@ void SolveMAP_dense(vertex_type& vertex,const gather_type& total,
  
  }
 
+int project_onto_simplex_cached(vec& x,	int d, double r, 
+				vector<pair<double,int> >& y) {
+  int j;
+  double s = 0.0;
+  double tau;
+
+  // Load x into a reordered y (the reordering is cached).
+  if (y.size() != d) {
+    y.resize(d);
+    for (j = 0; j < d; j++) {
+      s += x[j];
+      y[j].first = x[j];
+      y[j].second = j;
+    }
+    sort(y.begin(), y.end());
+  } else {
+    for (j = 0; j < d; j++) {
+      s += x[j];
+      y[j].first = x[y[j].second];
+    }
+    // If reordering is cached, use a sorting algorithm 
+    // which is fast when the vector is almost sorted.
+    InsertionSort(&y[0], d);
+  }
+
+  for (j = 0; j < d; j++) {
+    tau = (s - r) / ((double) (d - j));
+    if (y[j].first > tau) break;
+    s -= y[j].first;
+  }
+
+  for (j = 0; j < d; j++) {
+    if (x[j] < tau) {
+      x[j] = 0.0;
+    } else {
+      x[j] -= tau;
+    }
+  }
+
+  return 0;
+}
+
+void SolveQP_xor(vertex_type& vertex,const gather_type& total,
+            vec& variable_posteriors, vec& additional_posteriors) {
+  vertex_data& vdata =  vertex.data();
+  //vec variable_posteriors = total.neighbor_distribution + total.messages;
+  for (int f = 0; f < variable_posteriors.size(); ++f) {
+    variable_posteriors[f] = total.neighbor_distribution[f] + total.messages[f]; 
+    //cout<<vdata.potentials[f]<<" "<<total.neighbor_distribution[f]<<" "<<total.messages[f]<<endl;
+    }
+   // cout<<"v "<<variable_posteriors;
+   //cout<<endl;
+    project_onto_simplex_cached(variable_posteriors,
+                              vdata.potentials.size(), 1.0, vdata.last_sort_);
+  //cout<<"v2 "<<variable_posteriors;
+
+}
+
+void SolveMAP_xor(vertex_type& vertex,const gather_type& total,
+            vec& variable_posteriors, vec& additional_posteriors, double& value) {
+  vertex_data& vdata =  vertex.data();
+  vec log_potentials = total.messages;
+
+  int first = -1;
+  value = 0.0;
+
+  for (int f = 0; f < log_potentials.size(); ++f) {
+    if (first < 0 || log_potentials[f] > log_potentials[first]) first = f;
+  }
+  value += log_potentials[first];
+  variable_posteriors.setZero();
+  variable_posteriors[first] = 1.0;
+};
+
 // Finds beliefs using dense and budget factors
 void compute_beliefs(vertex_type& vertex,const gather_type& total,
             vec& variable_posteriors, vec& additional_posteriors){
 switch(vertex.data().factor_type){
 
-case 0: SolveQP_dense(vertex,total, variable_posteriors, additional_posteriors);
+case DENSE: SolveQP_dense(vertex,total, variable_posteriors, additional_posteriors);
         break;
-case 1: SolveQP_budget(vertex,total, variable_posteriors, additional_posteriors);
+case BUDGET: SolveQP_budget(vertex,total, variable_posteriors, additional_posteriors);
+         break;
+
+case XOR: SolveQP_xor(vertex,total, variable_posteriors, additional_posteriors);
 
 }
 };
@@ -929,10 +1008,11 @@ case 1: SolveQP_budget(vertex,total, variable_posteriors, additional_posteriors)
 void SolveMAP(vertex_type& vertex,const gather_type& total,
             vec& variable_posteriors, vec& additional_posteriors, double& value){
 switch(vertex.data().factor_type){
-
-case 0: SolveMAP_dense(vertex,total, variable_posteriors, additional_posteriors, value);
+case XOR: SolveMAP_xor(vertex,total, variable_posteriors, additional_posteriors, value);
+          break;
+case DENSE: SolveMAP_dense(vertex,total, variable_posteriors, additional_posteriors, value);
         break;
-case 1: SolveMAP_budget(vertex,total, variable_posteriors, additional_posteriors, value);
+case BUDGET: SolveMAP_budget(vertex,total, variable_posteriors, additional_posteriors, value);
   }
  };
 
@@ -963,6 +1043,7 @@ struct bethe_admm_vertex_program:public admm_vertex_program {
                  unary_grad[i] *= EXP * (unary_beliefs[i]);
              }
              // computation for factor beliefs
+             if(vdata.factor_type == DENSE){
              vector<int> states(vdata.nvars);
              for(int i=0; i< factor_beliefs.size(); i++){
                  factor_grad[i] *= factor_beliefs[i] / EXP;
@@ -973,6 +1054,7 @@ struct bethe_admm_vertex_program:public admm_vertex_program {
                      offset += vdata.cards[j];
                  }
              }
+           }
         }
 
 
@@ -1044,10 +1126,13 @@ struct bethe_admm_vertex_program:public admm_vertex_program {
                 if(vdata.beliefs[i] < 10e-100)
                    vdata.beliefs[i] = 10e-100;
             }  
+            
+            if(vdata.factor_type == DENSE){
             for(int i=0; i< vdata.factor_beliefs.size(); i++){
                 if(vdata.factor_beliefs[i] < 10e-100)
                    vdata.factor_beliefs[i] = 10e-100;
-            } 
+            }
+           } 
        }
        
 /* exponentiates potentials for bp. TODO: use faster approximation of pow */
@@ -1058,30 +1143,39 @@ struct bethe_admm_vertex_program:public admm_vertex_program {
             }
        }
        
-
-/* solves QP for factor vertices using bp */
+       void softmax(vertex_type& vertex, vec& unary_pots, vec& unary_margs){
+                   unary_margs = unary_pots/unary_pots.sum();}
+         /* solves QP for factor vertices using bp */
        void compute_beliefs(vertex_type& vertex,const gather_type& total,
             vec& variable_posteriors, vec& additional_posteriors){
 
              vertex_data& vdata = vertex.data();
              vec unary_eta, factor_eta;
+             vec unary_grad, factor_grad;
              // computing eta  
-             factor_eta = (vdata.potentials)/opts.alpha; 
+             
              unary_eta = total.messages + opts.step_size * (total.neighbor_distribution - vdata.beliefs); 
              unary_eta = (unary_eta)/opts.alpha;        
              exponentiate(unary_eta);
-             exponentiate(factor_eta);
-             vec unary_grad, factor_grad;
              unary_grad.resize(unary_eta.size());
+             
+             if(vdata.factor_type == DENSE){
+             factor_eta = (vdata.potentials)/opts.alpha; 
+             exponentiate(factor_eta);
 	     factor_grad.resize(factor_eta.size());
+             }
              compute_grad_phi(vertex, vdata.beliefs, vdata.factor_beliefs, unary_eta, factor_eta);
              //running bp on eta
-             run_bp(vertex, unary_eta, factor_eta, vdata.beliefs, vdata.factor_beliefs); 
+             switch(vdata.factor_type){
+             case DENSE: run_bp(vertex, unary_eta, factor_eta, vdata.beliefs, vdata.factor_beliefs); 
+                         break;
+             case XOR: softmax(vertex, unary_eta, vdata.beliefs);
+             }
              //adjust beliefs for overflow/underflow          
              adjust_beliefs(vertex);             
         };
  /* solves MAP for factor vertices */      
-        void SolveMAP(vertex_type& vertex,const gather_type& total,
+        void SolveMAP_dense(vertex_type& vertex,const gather_type& total,
             vec& variable_posteriors, vec& additional_posteriors, double& value){
              vertex_data& vdata = vertex.data();
              vec beliefs = vdata.potentials;
@@ -1096,6 +1190,32 @@ struct bethe_admm_vertex_program:public admm_vertex_program {
              }
              value = beliefs.maxCoeff();  
          };
+ 
+         void SolveMAP_xor(vertex_type& vertex,const gather_type& total,
+            vec& variable_posteriors, vec& additional_posteriors, double& value) {
+            vertex_data& vdata =  vertex.data();
+            vec log_potentials = total.messages;
+
+            int first = -1;
+            value = 0.0;
+
+            for (int f = 0; f < log_potentials.size(); ++f) {
+            if (first < 0 || log_potentials[f] > log_potentials[first]) first = f;
+             }
+            value += log_potentials[first];
+            variable_posteriors.setZero();
+            variable_posteriors[first] = 1.0;
+        };
+
+       void SolveMAP(vertex_type& vertex,const gather_type& total,
+            vec& variable_posteriors, vec& additional_posteriors, double& value){
+             switch(vertex.data().factor_type){
+             case XOR: SolveMAP_xor(vertex,total, variable_posteriors, additional_posteriors, value);
+                       break;
+             case DENSE: SolveMAP_dense(vertex,total, variable_posteriors, additional_posteriors, value);
+             }
+       };
+
 
 };
 /* end of  bethe_admm_vertex_program */

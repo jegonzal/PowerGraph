@@ -9,6 +9,7 @@
 
 size_t num_data = 0;
 size_t current_cluster = 0;
+size_t last_updated_cluster = 0;
 size_t num_clusters = 0;
 
 //helper function to normalize a vector;
@@ -61,8 +62,15 @@ bool evec_line_parser(evec_graph_type& graph, const std::string& filename,
   size_t vid = 0;
   strm >> vid;
   float val = 0.0;
-  strm >> val;
-  graph.add_edge(vid, num_data + current_cluster + 1, evec_edge_data(val));
+  size_t colcount = 0;
+  while(strm >> val) {
+    if (current_cluster + colcount >= num_clusters){
+      break;
+    }
+    graph.add_edge(vid, num_data + current_cluster + colcount + 1, evec_edge_data(val));
+    colcount++;
+  }
+  last_updated_cluster = current_cluster + colcount;
 
   return true;
 }
@@ -214,14 +222,19 @@ int main(int argc, char** argv) {
   for (size_t i = 0; i < num_clusters; ++i) {
     graph.add_vertex(num_data + i + 1, evec_vertex_data());
   }
+  
   for (size_t i = 0; i < num_clusters; ++i) {
-    current_cluster = i;
+    //current_cluster = i;
     std::stringstream vec_filename;
     vec_filename << datafile;
     vec_filename << ".U.";
-    vec_filename << i;
+    vec_filename << i+1;
     vec_filename << "_";
     graph.load(vec_filename.str(), evec_line_parser);
+    current_cluster = last_updated_cluster + 1;
+    if (current_cluster >=  num_clusters) {
+      break;
+    }
   }
   graph.finalize();
 

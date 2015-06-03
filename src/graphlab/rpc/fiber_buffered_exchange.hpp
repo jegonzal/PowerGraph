@@ -95,6 +95,7 @@ namespace graphlab {
       buffer_record() : proc(-1)  { }
     }; // end of buffer record
     typedef std::vector<buffer_record> recv_buffer_type;
+    mutex lock;
   private:
 
 
@@ -230,10 +231,20 @@ namespace graphlab {
       if (self_buffer) {
         // get from my own buffer
         size_t wid = fiber_control::get_worker_id();
+        lock.lock();
         if(!recv_buffers[wid].empty()) {
           success = true;
           std::swap(ret_buffer, recv_buffers[wid]);
+        } else {
+          for (size_t i = 0;i < recv_buffers.size(); ++i) {
+            if(!recv_buffers[i].empty()) {
+              success = true;
+              std::swap(ret_buffer, recv_buffers[i]);
+              break;
+            }
+          }
         }
+        lock.unlock();
       } else {
         for (size_t i = 0;i < recv_buffers.size(); ++i) {
           if(!recv_buffers[i].empty()) {
@@ -293,10 +304,12 @@ namespace graphlab {
       }
 
       size_t wid = fiber_control::get_worker_id();
+      lock.lock();
       recv_buffers[wid].push_back(buffer_record());
       buffer_record& rec = recv_buffers[wid].back();
       rec.proc = src_proc;
       rec.buffer.swap(tmp);
+      lock.unlock();
     } // end of rpc rcv
 
 

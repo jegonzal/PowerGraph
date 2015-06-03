@@ -20,6 +20,12 @@ include(CheckLibraryExists)
 include(CheckFunctionExists)
 include(ExternalProject)
 include(CheckCXXSourceCompiles)
+
+# check we are on a 64 bit machine (else fail)
+if( CMAKE_SIZEOF_VOID_P EQUAL 4 )
+   message( SEND_ERROR "GraphLab does not support 32 bit systems. Please switch to 64 bit system and try again" )
+endif ( CMAKE_SIZEOF_VOID_P EQUAL 4 )
+
 # # Display information about cmake variables
 # include(CMakePrintSystemInformation)
 
@@ -142,7 +148,7 @@ install(CODE "execute_process(COMMAND ./scripts/install_deps.sh
 # https://bitbucket.org/eigen/eigen/
 ExternalProject_Add(eigen
   PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
-  URL http://graphlab.org/deps/eigen_3.1.2.tar.bz2
+  URL https://s3-us-west-2.amazonaws.com/static.graphlab.com/PowerGraph/deps/eigen_3.1.2.tar.bz2
   URL_MD5 e9c081360dde5e7dcb8eba3c8430fde2
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
@@ -230,6 +236,8 @@ if(NOT NO_TCMALLOC)
     # We use tcmalloc for improved memory allocation performance
     ExternalProject_Add(libtcmalloc
     PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
+    # Some users can't access domain googlecode.com ,This is a spare URL
+    # URL http://sourceforge.jp/projects/sfnet_gperftools.mirror/downloads/gperftools-2.0.tar.gz
     URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
     URL_MD5 13f6e8961bc6a26749783137995786b6
     PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
@@ -302,11 +310,11 @@ endif()
 # OpenCV =================================================================
 ExternalProject_Add(opencv
   PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
-  URL http://superb-sea2.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2
+  URL http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.9/opencv-2.4.9.zip/download
   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
   PATCH_COMMAND patch -N -p0 cmake/OpenCVModule.cmake -i ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch || true
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-  -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_DOCS=OFF -DBUILD_JPEG=ON -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DWITH_CUBLAS=OFF -DWITH_1394=OFF -DWITH_AVFOUNDATION=OFF -DWITH_CUDA=OFF -DWITH_CUFFT=OFF -DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QUICKTIME=OFF -DWITH_VIDEOINPUT=OFF -DWITH_XIMEA=OFF -DWITH_XINE=OFF -DWITH_V4L=OFF -DWITH_UNICAP=OFF -DWITH_QT=OFF -DWITH_JASPER=NO -DWITH_TIFF=NO -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_DOCS=OFF -DBUILD_JPEG=ON -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DWITH_CUBLAS=OFF -DWITH_1394=OFF -DWITH_AVFOUNDATION=OFF -DWITH_CUDA=OFF -DWITH_CUFFT=OFF -DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QUICKTIME=OFF -DWITH_VIDEOINPUT=OFF -DWITH_XIMEA=OFF -DWITH_XINE=OFF -DWITH_V4L=OFF -DWITH_UNICAP=OFF -DWITH_QT=OFF -DWITH_JASPER=NO -DWITH_TIFF=NO -DWITH_OPENCL=OFF -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 
 # add_dependencies(opencv eigen)
@@ -361,25 +369,25 @@ endif()
 # libjson ====================================================================
 # Lib Json is used to support json serialization for long term storage of
 # graph data.
-ExternalProject_Add(libjson
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/json
-  URL http://graphlab.org/deps/libjson_7.6.0.zip
-  URL_MD5 dcb326038bd9b710b8f717580c647833
-  BUILD_IN_SOURCE 1
-  CONFIGURE_COMMAND ""
-  PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libjson.patch || true
-  BUILD_COMMAND make
-  INSTALL_COMMAND prefix=<INSTALL_DIR>/ make install
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  )
+#ExternalProject_Add(libjson
+#  PREFIX ${GraphLab_SOURCE_DIR}/deps/json
+#  URL http://graphlab.org/deps/libjson_7.6.0.zip
+#  URL_MD5 dcb326038bd9b710b8f717580c647833
+#  BUILD_IN_SOURCE 1
+#  CONFIGURE_COMMAND ""
+#  PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libjson.patch || true
+#  BUILD_COMMAND make
+#  INSTALL_COMMAND prefix=<INSTALL_DIR>/ make install
+#  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+#  )
 
 
 # zookeeper ================================================================
 
 ExternalProject_Add(zookeeper
   PREFIX ${GraphLab_SOURCE_DIR}/deps/zookeeper
-  URL http://apache.cs.utah.edu/zookeeper/zookeeper-3.4.5/zookeeper-3.4.5.tar.gz
-  URL_MD5 f64fef86c0bf2e5e0484d19425b22dcb
+  URL http://apache.cs.utah.edu/zookeeper/zookeeper-3.4.6/zookeeper-3.4.6.tar.gz
+  URL_MD5 971c379ba65714fd25dc5fe8f14e9ad1
   PATCH_COMMAND ${CMAKE_COMMAND} -E copy_directory ${GraphLab_SOURCE_DIR}/patches/zookeeper/ <SOURCE_DIR>
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ./configure --prefix=<INSTALL_DIR> --disable-shared
@@ -424,7 +432,7 @@ if(NOT NO_JAVAC)
     message(STATUS "Building libhdfs")
     ExternalProject_Add(hadoop
       PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
-      URL http://graphlab.org/deps/hadoop-1.0.1.tar.gz
+      URL https://s3-us-west-2.amazonaws.com/static.graphlab.com/PowerGraph/deps/hadoop-1.0.1.tar.gz
 #      URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/hadoop-1.0.1/hadoop-1.0.1.tar.gz
       URL_MD5 e627d9b688c4de03cba8313bd0bba148
       UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
@@ -488,9 +496,8 @@ macro(requires_core_deps NAME)
     ${Boost_LIBRARIES}
     z
     event event_pthreads
-    zookeeper_mt
-    json)
-  add_dependencies(${NAME} boost libevent libjson zookeeper)
+    zookeeper_mt)
+  add_dependencies(${NAME} boost libevent zookeeper)
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)

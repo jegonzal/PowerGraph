@@ -1,4 +1,4 @@
-/**
+	/**
 
 \page clustering Clustering
 
@@ -199,7 +199,7 @@ For instance:
 4 1 
 \endverbatim
 
-<tt>--id</tt> can be used with <tt>--sparse/tt>.
+<tt>--id</tt> can be used with <tt>--sparse</tt>.
 
 \subsection clustering_kmeans_edge_data Adding Pairwise Reward
 

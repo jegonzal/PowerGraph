@@ -14,9 +14,6 @@
  *  express or implied.  See the License for the specific language
  *  governing permissions and limitations under the License.
  *
- * For more about this software visit:
- *
- *      http://www.graphlab.ml.cmu.edu
  *
  */
 
@@ -200,7 +197,7 @@ std::map<size_t, double>& plus_equal_vector(std::map<size_t, double>& a,
     if(a.find(id) != a.end()){
       a[id] += b.at(id);
     }else{
-      a.insert(std::make_pair<size_t, double>(id, val));
+      a.insert(std::make_pair(id, val));
     }
   }
   return a;
@@ -270,7 +267,7 @@ bool vertex_loader_sparse(graph_type& graph, const std::string& fname,
     if(pos > 0){
       size_t id = (size_t)std::atoi(t.substr(0, pos).c_str());
       double val = std::atof(t.substr(pos+1, t.length() - pos -1).c_str());
-      vtx.point_sparse.insert(std::make_pair<size_t, double>(id, val));
+      vtx.point_sparse.insert(std::make_pair(id, val));
     }
   }
   vtx.best_cluster = (size_t)(-1);
@@ -327,7 +324,7 @@ bool vertex_loader_with_id_sparse(graph_type& graph, const std::string& fname,
       if(pos > 0){
         size_t id = (size_t)std::atoi(t.substr(0, pos).c_str());
         double val = std::atof(t.substr(pos+1, t.length() - pos -1).c_str());
-        vtx.point_sparse.insert(std::make_pair<size_t, double>(id, val));
+        vtx.point_sparse.insert(std::make_pair(id, val));
       }
     }
   }

@@ -14,9 +14,6 @@
  *  express or implied.  See the License for the specific language
  *  governing permissions and limitations under the License.
  *
- * For more about this software visit:
- *
- *      http://www.graphlab.ml.cmu.edu
  *
  */
 
@@ -35,7 +32,10 @@
 #define __DD_OPTS_HPP__
 
 #include <string>
-
+#define VAR 0
+#define XOR 1
+#define DENSE 2
+#define BUDGET 3
 /////////////////////////////////////////////////////////////////////////
 // Option Struct
 struct Options 
@@ -72,7 +72,7 @@ struct Options
     verbose(0),
     algorithm(0),
     maxiter(10000),
-    dualimprovthres(1e-7),
+    dualimprovthres(1e-12),
     pdgapthres(1e-1),
     alpha(1),
     step_size(1.0),

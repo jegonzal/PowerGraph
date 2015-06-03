@@ -1,10 +1,10 @@
-441a442
+564a565
 >   if(APPLE)
-447c448
+571c572
 <     INSTALL_NAME_DIR lib
 ---
 >     INSTALL_NAME_DIR "@rpath"
-449c450,457
+573c574,581
 < 
 ---
 >   else()

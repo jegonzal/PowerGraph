@@ -35,6 +35,10 @@
 #ifndef GRAPHLAB_GRAPHLAB_OPTIONS_HPP
 #define GRAPHLAB_GRAPHLAB_OPTIONS_HPP
 
+#ifndef __NO_OPENMP__
+#include <omp.h>
+#endif
+
 #include <graphlab/options/options_map.hpp>
  
 #include <graphlab/parallel/pthread_tools.hpp>
@@ -102,7 +106,15 @@ namespace graphlab {
 
 
     //! Set the number of cpus
-    void set_ncpus(size_t n) { ncpus = n; }
+    void set_ncpus(size_t n)
+      {
+#ifndef __NO_OPENMP__
+          ncpus = n;
+          omp_set_num_threads(ncpus);
+#else
+          ncpus = n;
+#endif
+      }
 
     //! Get the number of cpus
     size_t get_ncpus() const { return ncpus; }

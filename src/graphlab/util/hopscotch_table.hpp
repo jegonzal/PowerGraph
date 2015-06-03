@@ -24,6 +24,7 @@
 #ifndef GRAPHLAB_UTIL_HOPSCOTCH_TABLE_HPP
 #define GRAPHLAB_UTIL_HOPSCOTCH_TABLE_HPP
 
+#include <stdint.h>
 #include <vector>
 #include <utility>
 #include <algorithm>

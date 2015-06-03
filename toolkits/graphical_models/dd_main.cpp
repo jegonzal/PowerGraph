@@ -14,9 +14,6 @@
  *  express or implied.  See the License for the specific language
  *  governing permissions and limitations under the License.
  *
- * For more about this software visit:
- *
- *      http://www.graphlab.ml.cmu.edu
  *
  */
 
@@ -30,9 +27,10 @@
  *  \authors Dhruv Batra, André Martins, Aroma Mahendru
  */
 
-#include "dd_main.hpp"
+
 #include "dd_grlab.hpp"
 #include "ad3_qp.hpp"
+#include "dd_main.hpp"
 
 Options opts;
 
