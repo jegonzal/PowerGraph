@@ -236,9 +236,9 @@ if(NOT NO_TCMALLOC)
     # We use tcmalloc for improved memory allocation performance
     ExternalProject_Add(libtcmalloc
     PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
-    # Some users can't access domain googlecode.com ,This is a spare URL
-    # URL http://sourceforge.jp/projects/sfnet_gperftools.mirror/downloads/gperftools-2.0.tar.gz
-    URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
+    # Some users can't access domain googlecode.com, so we replace it with a link to our project server
+    # URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
+    URL http://ipads.se.sjtu.edu.cn/projects/powerlyra/deps/gperftools-2.0.tar.gz
     URL_MD5 13f6e8961bc6a26749783137995786b6
     PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
     CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> ${tcmalloc_shared}
