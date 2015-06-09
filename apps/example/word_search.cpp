@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2013 Institute of Parallel and Distributed Systems, Shanghai Jiao Tong University.
+/*  
+ * Copyright (c) 2013 Shanghai Jiao Tong University. 
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,12 @@
  *
  *      http://ipads.se.sjtu.edu.cn/projects/powerlyra.html
  *
+ *
+ * 2014.02  implement word search application for testing bipartite-aware partitiong
+ *              with affinity
+ *
  */
+
 
 
 #include <vector>
