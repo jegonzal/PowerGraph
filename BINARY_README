@@ -1,4 +1,45 @@
 
+                         PowerLyra Binary Release
+                         ------------------------
+
+=======
+License
+=======
+
+PowerLyra is free software licensed under the Apache 2.0 License. See
+license/LICENSE.txt for details.
+
+============
+Introduction
+============
+
+PowerLyra is based on the latest codebase of GraphLab PowerGraph (a distributed graph 
+computation framework written in C++) and can seamlessly support all GraphLab toolkits.
+
+PowerLyra Features:
+
+Hybrid computation engine:     Exploit the locality of low-degree vertices 
+                               and the parallelism of high-degree vertices
+
+Hybrid partitioning algorithm: Differentiate the partitioning algorithms 
+                               for different types of vertices
+
+Diverse scheduling strategy:   Provide both synchronous and asynchronous 
+                               computation engines
+
+Compatible API:                Seamlessly support all GraphLab toolkits 
+
+
+======================
+Installation and Usage
+======================
+
+The installation and tutorial of PowerLyra fully follow that of GraphLab. 
+See following notes for details.
+
+
+
+
                          Graphlab Binary Release
                          -----------------------
 
