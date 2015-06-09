@@ -37,14 +37,14 @@ For more details on the PowerLyra see http://ipads.se.sjtu.edu.cn/projects/power
 
 We argue that skewed distribution in natural graphs also calls for differentiated processing of high-degree and low-degree vertices. PowerLyra uses Pregel/GraphLab-like computation models for process low-degree vertices to minimize computation, communication and synchronization overhead, and uses PowerGraph-like computation model for process high-degree vertices to reduce load imbalance, contention and memory pressure. PowerLyra follows the interface of GAS (Gather, Apply and Scatter) model and can seamlessly support various graph algorithms (e.g., all GraphLab toolkits).
 
-![Hybrid Computation Engine](images/hybrid_engine_.png "Hybrid Computation Engine")
+![Hybrid Computation Engine](images/hybrid_engine.png "Hybrid Computation Engine")
 
 
 ### Hybrid Graph Partitioning
 
 PowerLyra additionally proposes a new hybrid graph cut algorithm that embraces the best of both worlds in edge-cut and vertex-cut, which evenly distributes low-degree vertices along with their edges like edge-cut, and evenly distributes edges of high-degree vertices like vertex-cut. Both theoretical analysis and empirical validation show that the expected replication factor of random hybrid-cut is alway better than both random (Hash-based), contrained (e.g., Grid), and heuristic (e.g., Oblivious or Coordinated) vertex-cut for skewed power-law graphs. 
 
-![Hybrid Partitioning Algorithms](images/hybrid_cut_.png "Hybrid Graph Partitioning")
+![Hybrid Partitioning Algorithms](images/hybrid_cut.png "Hybrid Graph Partitioning")
 
 
 ## Academic and Conference Papers
