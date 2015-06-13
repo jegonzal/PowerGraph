@@ -178,31 +178,32 @@ size_t validate_conflict(graph_type::edge_type& edge) {
 
 
 int main(int argc, char** argv) {
-
-  //global_logger().set_log_level(LOG_INFO);
-
   // Initialize control plane using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
-
+  global_logger().set_log_level(LOG_INFO);
 
   dc.cout() << "This program computes a simple graph coloring of a"
             "provided graph.\n\n";
 
+  // Parse command line options -----------------------------------------------
   graphlab::command_line_options clopts("Graph coloring. "
     "Given a graph, this program computes a graph coloring of the graph."
     "The Asynchronous engine is used.");
   std::string prefix, format;
   std::string output;
   float alpha = 2.1;
-  size_t powerlaw = 0;
+  std::string exec_type = "asynchronous";
   clopts.attach_option("graph", prefix,
                        "Graph input. reads all graphs matching prefix*");
+  clopts.attach_option("engine", exec_type,
+                       "The asynchronous engine type (async or plasync)");
   clopts.attach_option("format", format,
                        "The graph format");
-   clopts.attach_option("output", output,
+  clopts.attach_option("output", output,
                        "A prefix to save the output.");
-   clopts.attach_option("powerlaw", powerlaw,
+  size_t powerlaw = 0;
+  clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
       clopts.attach_option("alpha", alpha,
                        "Alpha in powerlaw distrubution");
@@ -219,10 +220,17 @@ int main(int argc, char** argv) {
   }
 
 
-  graphlab::launch_metric_server();
-  // load graph
-  graph_type graph(dc, clopts);
+  if (exec_type != "asynchronous" && exec_type != "async"
+        && exec_type != "powerlyra_asynchronous" && exec_type != "plasync"){
+    dc.cout() << "Only supports asynchronous engine" << std::endl;
+    clopts.print_description();
+    return EXIT_FAILURE;
+  }
 
+  graphlab::launch_metric_server();  
+  // Build the graph ----------------------------------------------------------
+  graphlab::timer ti;
+  graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
     graph.load_synthetic_powerlaw(powerlaw, false, alpha, 100000000);
@@ -237,12 +245,15 @@ int main(int argc, char** argv) {
     }
     graph.load_format(prefix, format);
   }
+
+  ti.start();
   graph.finalize();
+  dc.cout() << "Finalizing graph. Finished in " 
+            << ti.current_time() << " (seconds)" << std::endl;
 
   dc.cout() << "Number of vertices: " << graph.num_vertices() << std::endl
     << "Number of edges:    " << graph.num_edges() << std::endl;
 
-  graphlab::timer ti;
   
   // create engine to count the number of triangles
   dc.cout() << "Coloring..." << std::endl;
@@ -251,16 +262,22 @@ int main(int argc, char** argv) {
   } else {
     clopts.get_engine_args().set_option("factorized", true);
   } 
-  graphlab::async_consistent_engine<graph_coloring> engine(dc, graph, clopts);
+
+
+  // Running The Engine -------------------------------------------------------
+  graphlab::omni_engine<graph_coloring> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
+  ti.start();
   engine.start();
 
-
-  dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
+  dc.cout() << "------------------------------------------------" << std::endl;
+  dc.cout() << "Colored in " << ti.current_time() << " (seconds)" << std::endl;
   dc.cout() << "Colored using " << used_colors.size() << " colors" << std::endl;
-		  
+
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
+
+  // Save the final graph -----------------------------------------------------
   if (output != "") {
     graph.save(output,
               save_colors(),
