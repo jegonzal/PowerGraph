@@ -270,9 +270,16 @@ int main(int argc, char** argv) {
   ti.start();
   engine.start();
 
-  dc.cout() << "------------------------------------------------" << std::endl;
-  dc.cout() << "Colored in " << ti.current_time() << " (seconds)" << std::endl;
+  const double runtime = ti.current_time();
+  dc.cout() << "----------------------------------------------------------"
+            << std::endl
+            << "Final Runtime (seconds):   " << runtime 
+            << std::endl
+            << "Updates executed: " << engine.num_updates() << std::endl
+            << "Update Rate (updates/second): " 
+            << engine.num_updates() / runtime << std::endl;
   dc.cout() << "Colored using " << used_colors.size() << " colors" << std::endl;
+
 
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
