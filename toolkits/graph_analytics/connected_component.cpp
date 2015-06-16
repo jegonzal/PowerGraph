@@ -175,23 +175,50 @@ int main(int argc, char** argv) {
     std::cout << "--graph is not optional\n";
     return EXIT_FAILURE;
   }
-
-  graph_type graph(dc, clopts);
-
+  
   //load graph
   dc.cout() << "Loading graph in format: "<< format << std::endl;
+  graphlab::timer timer;
+  graph_type graph(dc, clopts);
   graph.load_format(graph_dir, format);
-  graphlab::timer ti;
+  const double loading = timer.current_time();
+  dc.cout() << "Loading graph. Finished in " 
+            << loading << std::endl;
+
+
+  dc.cout() << "Finalizing graph." << std::endl;
+  timer.start();
   graph.finalize();
-  dc.cout() << "Finalization in " << ti.current_time() << std::endl;
+  const double finalizing = timer.current_time();
+  dc.cout() << "Finalizing graph. Finished in " 
+            << finalizing << std::endl;
+
+  // NOTE: ingress time = loading time + finalizing time
+  const double ingress = loading + finalizing;
+  dc.cout() << "Final Ingress (second): " << ingress << std::endl;
+
+
+  dc.cout() << "#vertices: " << graph.num_vertices()
+            << " #edges:" << graph.num_edges() << std::endl;
+
+  // init
   graph.transform_vertices(initialize_vertex);
 
   //running the engine
-  time_t start, end;
   graphlab::omni_engine<label_propagation> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
-  time(&start);
+  timer.start();
   engine.start();
+
+  const double runtime = timer.current_time();
+  dc.cout() << "----------------------------------------------------------"
+            << std::endl
+            << "Final Runtime (seconds):   " << runtime 
+            << std::endl
+            << "Updates executed: " << engine.num_updates() << std::endl
+            << "Update Rate (updates/second): " 
+            << engine.num_updates() / runtime << std::endl;
+    
 
   //write results
   if (saveprefix.size() > 0) {

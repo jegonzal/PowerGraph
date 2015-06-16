@@ -307,14 +307,31 @@ int main(int argc, char** argv) {
   }
 
   //load graph
-  graph_type graph(dc, clopts);
   dc.cout() << "Loading graph in format: "<< format << std::endl;
+    graphlab::timer timer; 
+  graph_type graph(dc, clopts);
   graph.load_format(graph_dir, format);
-  graph.finalize();
+  const double loading = timer.current_time();
+  dc.cout() << "Loading graph. Finished in " 
+            << loading << std::endl;
 
-  time_t start, end;
+  // must call finalize before querying the graph
+  dc.cout() << "Finalizing graph." << std::endl;
+  timer.start();
+  graph.finalize();
+  const double finalizing = timer.current_time();
+  dc.cout() << "Finalizing graph. Finished in " 
+            << finalizing << std::endl;
+
+  // NOTE: ingress time = loading time + finalizing time
+  const double ingress = loading + finalizing;
+  dc.cout() << "Final Ingress (second): " << ingress << std::endl;
+
+
+  dc.cout() << "#vertices: " << graph.num_vertices()
+            << " #edges:" << graph.num_edges() << std::endl;
+
   //initialize vertices
-  time(&start);
   if (use_sketch == false)
     graph.transform_vertices(initialize_vertex);
   else
@@ -322,6 +339,7 @@ int main(int argc, char** argv) {
 
   graphlab::omni_engine<one_hop> engine(dc, graph, exec_type, clopts);
 
+  timer.start();
   //main iteration
   size_t previous_count = 0;
   size_t diameter = 0;
@@ -348,13 +366,19 @@ int main(int argc, char** argv) {
     }
     previous_count = current_count;
   }
-  time(&end);
 
-  dc.cout() << "graph calculation time is " << (end - start) << " sec\n";
-  dc.cout() << "The approximate diameter is " << diameter << "\n";
+  const double runtime = timer.current_time();
+  dc.cout() << "----------------------------------------------------------"
+            << std::endl
+            << "Final Runtime (seconds):   " << runtime 
+            << std::endl
+            << "Updates executed: " << engine.num_updates() << std::endl
+            << "Update Rate (updates/second): " 
+            << engine.num_updates() / runtime << std::endl;
+
+  dc.cout() << "The approximate diameter is " << diameter << std::endl;
 
   graphlab::mpi_tools::finalize();
-
   return EXIT_SUCCESS;
 }
 

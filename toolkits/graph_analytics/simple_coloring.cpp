@@ -227,9 +227,11 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  graphlab::launch_metric_server();  
+  graphlab::launch_metric_server();
+  
   // Build the graph ----------------------------------------------------------
-  graphlab::timer ti;
+  dc.cout() << "Loading graph." << std::endl;
+  graphlab::timer timer;
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
@@ -245,14 +247,24 @@ int main(int argc, char** argv) {
     }
     graph.load_format(prefix, format);
   }
-
-  ti.start();
+  const double loading = timer.current_time();
+  dc.cout() << "Loading graph. Finished in " 
+            << loading << std::endl;
+  
+  // must call finalize before querying the graph
+  dc.cout() << "Finalizing graph." << std::endl;
+  timer.start();
   graph.finalize();
+  const double finalizing = timer.current_time();
   dc.cout() << "Finalizing graph. Finished in " 
-            << ti.current_time() << " (seconds)" << std::endl;
+            << finalizing << std::endl;
 
-  dc.cout() << "Number of vertices: " << graph.num_vertices() << std::endl
-    << "Number of edges:    " << graph.num_edges() << std::endl;
+  // NOTE: ingress time = loading time + finalizing time
+  const double ingress = loading + finalizing;
+  dc.cout() << "Final Ingress (second): " << ingress << std::endl;
+
+  dc.cout() << "#vertices: " << graph.num_vertices()
+            << " #edges:" << graph.num_edges() << std::endl;
 
   
   // create engine to count the number of triangles
@@ -267,10 +279,10 @@ int main(int argc, char** argv) {
   // Running The Engine -------------------------------------------------------
   graphlab::omni_engine<graph_coloring> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
-  ti.start();
+  timer.start();
   engine.start();
 
-  const double runtime = ti.current_time();
+  const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
             << std::endl
             << "Final Runtime (seconds):   " << runtime 

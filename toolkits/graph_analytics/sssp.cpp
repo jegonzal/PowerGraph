@@ -281,14 +281,23 @@ int main(int argc, char** argv) {
     clopts.print_description();
     return EXIT_FAILURE;
   }
+  const double loading = timer.current_time();
   dc.cout() << "Loading graph. Finished in " 
-            << timer.current_time() << std::endl;
+            << loading << std::endl;
+
   // must call finalize before querying the graph
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
+  const double finalizing = timer.current_time();
   dc.cout() << "Finalizing graph. Finished in " 
-            << timer.current_time() << std::endl;
+            << finalizing << std::endl;
+
+  // NOTE: ingress time = loading time + finalizing time
+  const double ingress = loading + finalizing;
+  dc.cout() << "Final Ingress (second): " << ingress << std::endl;
+
+  dc.cout() << "Final Ingress (second): " << ingress << std::endl;
 
   dc.cout() << "#vertices: " << graph.num_vertices()
             << " #edges:" << graph.num_edges() << std::endl;

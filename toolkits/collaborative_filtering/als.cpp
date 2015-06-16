@@ -619,8 +619,9 @@ int main(int argc, char** argv) {
   graphlab::timer timer; 
   graph_type graph(dc, clopts);  
   graph.load(input_dir, graph_loader); 
+  const double loading = timer.current_time();
   dc.cout() << "Loading graph. Finished in " 
-            << timer.current_time() << std::endl;
+            << loading << std::endl;
 
   if (dc.procid() == 0) 
     add_implicit_edges<edge_data>(implicitratingtype, graph, dc);
@@ -628,11 +629,19 @@ int main(int argc, char** argv) {
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
+  const double finalizing = timer.current_time();
   dc.cout() << "Finalizing graph. Finished in " 
-            << timer.current_time() << std::endl;
+            << finalizing << std::endl;
+
+  // NOTE: ingress time = loading time + finalizing time
+  const double ingress = loading + finalizing;
+  dc.cout() << "Final Ingress (second): " << ingress << std::endl;
 
   if (!graph.num_edges() || !graph.num_vertices())
-     logstream(LOG_FATAL)<< "Failed to load graph. Check your input path: " << input_dir << std::endl;     
+    logstream(LOG_FATAL) << "Failed to load graph. Check your input path: " 
+                         << input_dir << std::endl;     
+  dc.cout() << "#vertices: " << graph.num_vertices()
+            << " #edges:" << graph.num_edges() << std::endl;
 
 
   dc.cout() 
@@ -699,13 +708,11 @@ int main(int argc, char** argv) {
                true, threads_per_machine);
     //save the linear model
     graph.save(predictions + ".U", linear_model_saver_U(),
-		gzip_output, true, false, threads_per_machine);
+               gzip_output, true, false, threads_per_machine);
     graph.save(predictions + ".V", linear_model_saver_V(),
-		gzip_output, true, false, threads_per_machine);
+               gzip_output, true, false, threads_per_machine);
   
   }
-             
-
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;

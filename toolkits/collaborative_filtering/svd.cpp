@@ -702,16 +702,28 @@ int main(int argc, char** argv) {
   graph_type graph(dc, clopts);  
   graph.load(input_dir, graph_loader); 
   pgraph = &graph;
+  const double loading = timer.current_time();
   dc.cout() << "Loading graph. Finished in " 
-    << timer.current_time() << std::endl;
+            << loading << std::endl;
+
+
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
+  const double finalizing = timer.current_time();
   dc.cout() << "Finalizing graph. Finished in " 
-    << timer.current_time() << std::endl;
+            << finalizing << std::endl;
+
+  // NOTE: ingress time = loading time + finalizing time
+  const double ingress = loading + finalizing;
+  dc.cout() << "Final Ingress (second): " << ingress << std::endl;
+
 
   if (!graph.num_edges() || !graph.num_vertices())
-     logstream(LOG_FATAL)<< "Failed to load graph. Check your input path: " << input_dir << std::endl;     
+     logstream(LOG_FATAL) << "Failed to load graph. Check your input path: " 
+                          << input_dir << std::endl;     
+  dc.cout() << "#vertices: " << graph.num_vertices()
+            << " #edges:" << graph.num_edges() << std::endl;
 
   dc.cout() 
     << "========== Graph statistics on proc " << dc.procid() 
@@ -753,7 +765,8 @@ int main(int argc, char** argv) {
     for (int i=0; i< rows; i++){
       int rc = fscanf(file, "%lg\n", &val);
       if (rc != 1)
-        logstream(LOG_FATAL)<<"Failed to read initial vector (on line: "<< i << " ) " << std::endl;
+        logstream(LOG_FATAL)<<"Failed to read initial vector (on line: "<< i 
+                            << " ) " << std::endl;
       input[i] = val;
     }
     fclose(file);
@@ -765,16 +778,17 @@ int main(int argc, char** argv) {
   lanczos( info, timer, errest, vecfile);
 
   if (graphlab::mpi_tools::rank()==0)
-    write_output_vector(predictions + ".singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
+    write_output_vector(predictions + ".singular_values", singular_values, false, 
+    "%GraphLab SVD Solver library. This file contains the singular values.");
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
-    << std::endl
-    << "Final Runtime (seconds):   " << runtime 
-                                        << std::endl
-                                        << "Updates executed: " << engine.num_updates() << std::endl
-                                        << "Update Rate (updates/second): " 
-                                          << engine.num_updates() / runtime << std::endl;
+            << std::endl
+            << "Final Runtime (seconds):   " << runtime 
+            << std::endl
+            << "Updates executed: " << engine.num_updates() << std::endl
+            << "Update Rate (updates/second): " 
+            << engine.num_updates() / runtime << std::endl;
 
   // Compute the final training error -----------------------------------------
   if (unittest == 1){
