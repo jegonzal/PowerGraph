@@ -191,7 +191,7 @@ namespace graphlab {
    *                    runtime memory consumption.
    *
    * \li \c "grid" Runs at rouphly the same speed of random. Randomly places
-   *                edges on machines with a grid constraint.–
+   *                edges on machines with a grid constraint.
    *                This obtains quality partition, close to oblivious,
    *                but currently only works with perfect square number of machines.
    *
