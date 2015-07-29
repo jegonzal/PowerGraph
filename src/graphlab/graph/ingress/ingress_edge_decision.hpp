@@ -173,7 +173,92 @@ namespace graphlab {
         ++proc_num_edges[best_proc];
         return best_proc;
       };
+      
+     /** HDRF greedy assign (source, target) to a machine using: 
+      *  bitset<MAX_MACHINE> src_degree : the degree presence of source over machines
+      *  bitset<MAX_MACHINE> dst_degree : the degree presence of target over machines
+      *  size_t              src_true_degree : the degree of source vertex over machines
+      *  size_t              dst_true_degree : the degree of target vertex over machines
+      *  vector<size_t>      proc_num_edges : the edge counts over machines
+      *
+      *  author : Fabio Petroni [www.fabiopetroni.com]
+	  *           Giorgio Iacoboni [g.iacoboni@gmail.com]
+      *
+      *  Based on the publication:	
+      *  F. Petroni, L. Querzoni, K. Daudjee, S. Kamali and G. Iacoboni: 
+      *  "HDRF: Stream-Based Partitioning for Power-Law Graphs". 
+      *  CIKM, 2015.
+      * */
+     procid_t edge_to_proc_hdrf (const vertex_id_type source, 
+          const vertex_id_type target,
+          bin_counts_type& src_degree,
+          bin_counts_type& dst_degree,
+          size_t& src_true_degree,
+          size_t& dst_true_degree,
+          std::vector<size_t>& proc_num_edges,
+          bool usehash = false,
+          bool userecent = false) {
+        
+        size_t numprocs = proc_num_edges.size();
+        
+        size_t degree_u = src_true_degree;
+        degree_u = degree_u +1;
+        size_t degree_v = dst_true_degree;
+        degree_v = degree_v +1;
+        size_t SUM = degree_u + degree_v;
+        double fu = degree_u;
+        fu /= SUM;
+        double fv = degree_v;
+        fv /= SUM;
+        
+        // Compute the score of each proc.
+        procid_t best_proc = -1; 
+        double maxscore = 0.0;
+        double epsilon = 1.0; 
+        std::vector<double> proc_score(numprocs); 
+        size_t minedges = *std::min_element(proc_num_edges.begin(), proc_num_edges.end());
+        size_t maxedges = *std::max_element(proc_num_edges.begin(), proc_num_edges.end());
+        
+        for (size_t i = 0; i < numprocs; ++i) {
+		  double new_sd = 0;
+		  double new_td = 0;
+		  size_t sd = src_degree.get(i) + (usehash && (source % numprocs == i));
+		  size_t td = dst_degree.get(i) + (usehash && (target % numprocs == i));
+		  if (sd > 0){
+		    new_sd = 1+(1-fu);
+		  }
+		  if (td > 0){
+		    new_td = 1+(1-fv);
+		  }
+         double bal = (maxedges - proc_num_edges[i])/(epsilon + maxedges - minedges);
 
+         proc_score[i] = bal + new_sd + new_td;
+        }
+        
+        maxscore = *std::max_element(proc_score.begin(), proc_score.end());
+        
+        std::vector<procid_t> top_procs; 
+        for (size_t i = 0; i < numprocs; ++i)
+          if (std::fabs(proc_score[i] - maxscore) < 1e-5)
+            top_procs.push_back(i);
+        
+        // Hash the edge to one of the best procs.
+        typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
+        const edge_pair_type edge_pair(std::min(source, target), std::max(source, target));
+        best_proc = top_procs[graph_hash::hash_edge(edge_pair) % top_procs.size()];
+        
+        ASSERT_LT(best_proc, numprocs);
+        if (userecent) {
+          src_degree.clear();
+          dst_degree.clear();
+        }
+        src_degree.set_bit(best_proc);
+        dst_degree.set_bit(best_proc);
+        ++proc_num_edges[best_proc];
+        ++src_true_degree;
+        ++dst_true_degree;
+        return best_proc;
+     };
   };// end of ingress_edge_decision
 }
 

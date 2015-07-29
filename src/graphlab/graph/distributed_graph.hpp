@@ -76,6 +76,7 @@
 #include <graphlab/graph/graph_gather_apply.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_hdrf_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_random_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_identity_ingress.hpp>
 
@@ -199,6 +200,13 @@ namespace graphlab {
    *                perfect difference set.  This obtains the highest quality partition,
    *                reducing runtime memory consumption significantly, without load-time penalty.
    *                Currently only works with p^2+p+1 number of machines (p prime).
+   *	
+   * \li \c "hdrf" Runs at roughly the speed of oblivious.
+   *	            HDRF provides the smallest average replication factor with close to optimal load balance.
+   *		    The HDRF algorithm is extensively described in the following publication:
+   *		    F. Petroni, L. Querzoni, K. Daudjee, S. Kamali and G. Iacoboni: 
+   *		    "HDRF: Stream-Based Partitioning for Power-Law Graphs". 
+   *		    CIKM, 2015.
    *
    * ### Referencing Vertices / Edges Many GraphLab operations will pass around
    * vertex_type and edge_type objects. These objects are light-weight copyable
@@ -400,6 +408,7 @@ namespace graphlab {
     friend class distributed_random_ingress<VertexData, EdgeData>;
     friend class distributed_identity_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
+    friend class distributed_hdrf_ingress<VertexData, EdgeData>;
     friend class distributed_constrained_random_ingress<VertexData, EdgeData>;
 
     typedef graphlab::vertex_id_type vertex_id_type;
@@ -3174,6 +3183,10 @@ namespace graphlab {
         if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
           << ", userecent: " << userecent << std::endl;
         ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
+      } else if (method == "hdrf") {
+        if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use hdrf oblivious ingress, usehash: " << usehash
+          << ", userecent: " << userecent << std::endl;
+        ingress_ptr = new distributed_hdrf_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
       } else if  (method == "random") {
         if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use random ingress" << std::endl;
         ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this); 
@@ -3465,4 +3478,3 @@ namespace graphlab {
 #include <graphlab/macros_undef.hpp>
 
 #endif
-
