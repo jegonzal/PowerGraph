@@ -1,6 +1,6 @@
 "Graph Options\n"
 "==============\n"
-"ingress: The graph partitioning method to use. May be \"random\"\n"
+"ingress: The graph partitioning method to use. May be \"random\”,\n”
 “\”grid\”, \”pds\”, \”oblivious\” or \”hdrf\”. The methods are in”
 "increasing complexity. \"random\" is the simplest and produces the \n"
 "worst partitions, while \”hdrf\” takes the longest, but produces\n"
