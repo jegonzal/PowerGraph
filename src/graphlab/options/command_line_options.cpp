@@ -135,7 +135,7 @@ static const char* graph_help_string =
       }
       boost_po::store(parsed, vm);
       boost_po::notify(vm);
-    } catch( boost_po::error error) {
+    } catch(boost_po::error& error) {
       std::cout << "Invalid syntax:\n"
                 << "\t" << error.what()
                 << "\n\n" << std::endl
