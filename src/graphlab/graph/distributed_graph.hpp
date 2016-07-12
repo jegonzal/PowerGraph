@@ -2609,7 +2609,7 @@ namespace graphlab {
       /// The local vid of this vertex on this proc
       vertex_id_type gvid;
       /// The number of in edges
-      vertex_id_type num_in_edges, num_out_edges;
+      size_t num_in_edges, num_out_edges;
       /** The set of proc that mirror this vertex.  The owner should
           NOT be in this set.*/
       mirror_type _mirrors;

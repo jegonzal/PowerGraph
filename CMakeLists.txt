@@ -38,6 +38,12 @@ include_directories(
 # set link path
 link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 
+if (DEFINED EXTERNAL_VERTEX_ID_TYPE_INCLUDE)
+  add_definitions(-DEXTERNAL_VERTEX_ID_TYPE_INCLUDE=${EXTERNAL_VERTEX_ID_TYPE_INCLUDE})
+endif()
+if (DEFINED EXTERNAL_VERTEX_ID_TYPE)
+  add_definitions(-DEXTERNAL_VERTEX_ID_TYPE=${EXTERNAL_VERTEX_ID_TYPE})
+endif()
 add_definitions(-DUSE_DYNAMIC_LOCAL_GRAPH)
 
 if(NO_OPENMP)

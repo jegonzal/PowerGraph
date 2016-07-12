@@ -270,7 +270,7 @@ class distributed_chandy_misra {
         philosopherset[lvid].lock.unlock();
         
         if (requestor != rmi.procid()) {
-          unsigned char pkey = rmi.dc().set_sequentialization_key(gvid % 254 + 1);
+          unsigned char pkey = rmi.dc().set_sequentialization_key(assess_sequentialization_key(gvid));
           rmi.remote_call(requestor,
                           &dcm_type::rpc_cancellation_accept,
                           gvid,
@@ -312,7 +312,7 @@ class distributed_chandy_misra {
       cancellation_request_unlocked(lvid, rmi.procid(), lockid);
     }
     else {
-      unsigned char pkey = rmi.dc().set_sequentialization_key(lvertex.global_id() % 254 + 1);
+      unsigned char pkey = rmi.dc().set_sequentialization_key(assess_sequentialization_key(lvertex.global_id()));
       rmi.remote_call(lvertex.owner(),
                     &dcm_type::rpc_cancellation_request,
                     lvertex.global_id(),
@@ -523,7 +523,7 @@ class distributed_chandy_misra {
       signal_ready_unlocked(p_id, philosopherset[p_id].lockid);
     }
     else {
-      unsigned char pkey = rmi.dc().set_sequentialization_key(lvertex.global_id() % 254 + 1);
+      unsigned char pkey = rmi.dc().set_sequentialization_key(assess_sequentialization_key(lvertex.global_id()));
       if (hors_doeuvre_callback != NULL) hors_doeuvre_callback(p_id);
       rmi.remote_call(lvertex.owner(),
                       &dcm_type::rpc_signal_ready,
@@ -571,7 +571,7 @@ class distributed_chandy_misra {
       philosopherset[lvid].lock.unlock();
       // broadcast EATING
       local_vertex_type lvertex(graph.l_vertex(lvid));
-      unsigned char pkey = rmi.dc().set_sequentialization_key(lvertex.global_id() % 254 + 1);
+      unsigned char pkey = rmi.dc().set_sequentialization_key(assess_sequentialization_key(lvertex.global_id()));
       rmi.remote_call(lvertex.mirrors().begin(), lvertex.mirrors().end(),
                       &dcm_type::rpc_set_eating, lvertex.global_id(), lockid);
       set_eating(lvid, lockid);
@@ -784,7 +784,7 @@ class distributed_chandy_misra {
   
     philosopherset[p_id].lock.unlock();
     
-    unsigned char pkey = rmi.dc().set_sequentialization_key(lvertex.global_id() % 254 + 1);
+    unsigned char pkey = rmi.dc().set_sequentialization_key(assess_sequentialization_key(lvertex.global_id()));
     rmi.remote_call(lvertex.mirrors().begin(), lvertex.mirrors().end(),
                     &dcm_type::rpc_make_philosopher_hungry, lvertex.global_id(), newlockid);
     rmi.dc().set_sequentialization_key(pkey);
@@ -826,7 +826,7 @@ class distributed_chandy_misra {
 //    ASSERT_EQ(philosopherset[p_id].state, (int)EATING);
     philosopherset[p_id].counter = 0;
     philosopherset[p_id].lock.unlock();
-    unsigned char pkey = rmi.dc().set_sequentialization_key(lvertex.global_id() % 254 + 1);
+    unsigned char pkey = rmi.dc().set_sequentialization_key(assess_sequentialization_key(lvertex.global_id()));
     rmi.remote_call(lvertex.mirrors().begin(), lvertex.mirrors().end(),
                     &dcm_type::rpc_philosopher_stops_eating, lvertex.global_id());
     rmi.dc().set_sequentialization_key(pkey);
@@ -960,6 +960,10 @@ class distributed_chandy_misra {
         ASSERT_EQ(philosopherset[v].forks_acquired, philosopherset[v].num_edges);
       }
     }
+  }
+  
+  inline unsigned char assess_sequentialization_key(vertex_id_type v_id) {
+    return static_cast<unsigned char>(v_id % 254 + 1);
   }
 };
 

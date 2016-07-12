@@ -53,7 +53,8 @@ namespace graphlab {
      * 
      * \param[out] topsort Resultant topological sort of the graph vertices.
      *
-     * function will return false if graph is not acyclic.
+     * function will return false if graph is not acyclic. 
+     * The function requires the vertices of the graph to be numbered from 0 to graph.num_vertices()-1.
      */
     template <typename VertexType, typename EdgeType>
     bool topological_sort(const distributed_graph<VertexType, EdgeType>& graph, 
@@ -77,8 +78,8 @@ namespace graphlab {
         topsort.push_back(v);
         foreach(typename graph_type::edge_type edge, graph.get_out_edges(v)) {
           vertex_id_type destv = edge.target();
-          --indeg[destv];
-          if (indeg[destv] == 0) {
+          --indeg[static_cast<size_t>(destv)];
+          if (indeg[static_cast<size_t>(destv)] == 0) {
             q.push(destv);
           }
         }

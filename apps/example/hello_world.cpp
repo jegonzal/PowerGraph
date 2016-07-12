@@ -34,7 +34,7 @@ typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type
  * A simple function used by graph.transform_vertices(init_vertex);
  * to initialize the vertex data.
  */
-void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = vertex.id(); }
+void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = static_cast<float>(vertex.id()); }
 
 struct min_combiner {
     graphlab::vertex_id_type v;

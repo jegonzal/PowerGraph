@@ -85,7 +85,7 @@ namespace graphlab {
     /// Detail vertex record for the second pass coordination. 
     struct vertex_negotiator_record {
       mirror_type mirrors;
-      vertex_id_type num_in_edges, num_out_edges;
+      size_t num_in_edges, num_out_edges;
       bool has_data;
       vertex_data_type vdata;
       vertex_negotiator_record() : num_in_edges(0), num_out_edges(0), has_data(false) { }

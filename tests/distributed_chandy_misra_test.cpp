@@ -87,7 +87,7 @@ void thread_stuff() {
     deq = locked_elements.dequeue();
     if (deq.second == false) break;
     else {
-      locks->philosopher_stops_eating(deq.first);
+      locks->philosopher_stops_eating(static_cast<graphlab::lvid_type>(deq.first));
       mt.lock();
       current_demand_set[deq.first] = 0;
       bool getnextlock = nlocks_to_acquire > 0;
@@ -115,7 +115,7 @@ void thread_stuff() {
           }
           mt.unlock();
         }
-        locks->make_philosopher_hungry(toacquire);
+        locks->make_philosopher_hungry(static_cast<graphlab::lvid_type>(toacquire));
       }
     }
   }
@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
   nlocks_to_acquire = INITIAL_NLOCKS_TO_ACQUIRE;
   dc.full_barrier();
   for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {
-    if (graph.l_get_vertex_record(v).owner == dc.procid()) {
+    if (graph.l_get_vertex_record(static_cast<graphlab::lvid_type>(v)).owner == dc.procid()) {
       demand_set[v] = 1;
       current_demand_set[v] = 1;
       lockable_vertices.push_back(v);
@@ -265,9 +265,9 @@ int main(int argc, char** argv) {
     thrs.launch(thread_stuff);
   }
   for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {
-    if (graph.l_get_vertex_record(v).owner == dc.procid()) {
+    if (graph.l_get_vertex_record(static_cast<graphlab::lvid_type>(v)).owner == dc.procid()) {
       //std::cout << dc.procid() << ": Lock Req for " << graph.l_get_vertex_record(v).gvid << std::endl;
-      locks->make_philosopher_hungry(v);
+      locks->make_philosopher_hungry(static_cast<graphlab::lvid_type>(v));
     }
   }
   mt.lock();
@@ -282,7 +282,7 @@ int main(int argc, char** argv) {
   bool bad = (nlocksacquired != INITIAL_NLOCKS_TO_ACQUIRE + lockable_vertices.size());
   while (iter != demand_set.end()) {
     if(locked_set[iter->first] != iter->second) {
-      std::cout << graph.l_get_vertex_record(iter->first).gvid << " mismatch: "
+      std::cout << graph.l_get_vertex_record(static_cast<graphlab::lvid_type>(iter->first)).gvid << " mismatch: "
                 << locked_set[iter->first] << ", " << iter->second << "\n";
       bad = true;
     }
