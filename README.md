@@ -1,12 +1,12 @@
 # GraphLab PowerGraph v2.2
 
-## UPDATE: For a signficant evolution of this codebase, see GraphLab Create which is available for download at [dato.com](http://dato.com)
+## UPDATE: For a signficant evolution of this codebase, see GraphLab Create which is available for download at [turi.com](https://turi.com)
 
 ## History
-In 2013, the team that created GraphLab PowerGraph started the Seattle-based company, GraphLab, Inc. The learnings from GraphLab PowerGraph and GraphChi projects have culminated into GraphLab Create, a enterprise-class data science platform for data scientists and software engineers that can simplify building and deploying advanced machine learning models as a RESTful predictive service. In January 2015, GraphLab, Inc. was renamed to Dato, Inc. See [dato.com](http://dato.com) for more information. 
+In 2013, the team that created GraphLab PowerGraph started the Seattle-based company, GraphLab, Inc. The learnings from GraphLab PowerGraph and GraphChi projects have culminated into GraphLab Create, a enterprise-class data science platform for data scientists and software engineers that can simplify building and deploying advanced machine learning models as a RESTful predictive service. In January 2015, GraphLab, Inc. was renamed to Turi. See [turi.com](https://turi.com) for more information. 
 
 ## Status
-GraphLab PowerGraph is no longer in active development by the founding team. GraphLab PowerGraph is now supported by the community at [http://forum.dato.com/](http://forum.dato.com/).  
+GraphLab PowerGraph is no longer in active development by the founding team. GraphLab PowerGraph is now supported by the community at [http://forum.turi.com/](http://forum.turi.com/).  
 
 # Introduction
 

@@ -148,7 +148,7 @@ install(CODE "execute_process(COMMAND ./scripts/install_deps.sh
 # https://bitbucket.org/eigen/eigen/
 ExternalProject_Add(eigen
   PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
-  URL https://s3.amazonaws.com/static.dato.com/PowerGraph/deps/eigen_3.1.2.tar.bz2 
+  URL http://bitbucket.org/eigen/eigen/get/3.1.2.tar.bz2
   URL_MD5 e9c081360dde5e7dcb8eba3c8430fde2
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
@@ -432,7 +432,7 @@ if(NOT NO_JAVAC)
     message(STATUS "Building libhdfs")
     ExternalProject_Add(hadoop
       PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
-      URL https://s3.amazonaws.com/static.dato.com/PowerGraph/deps/hadoop-1.0.1.tar.gz
+      URL https://archive.apache.org/dist/hadoop/core/hadoop-1.0.1/hadoop-1.0.1.tar.gz
 #      URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/hadoop-1.0.1/hadoop-1.0.1.tar.gz
       URL_MD5 e627d9b688c4de03cba8313bd0bba148
       UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
@@ -750,10 +750,3 @@ macro(add_jni_library NAME)
     message(STATUS "Not building " ${NAME} " because JNI was not found")
   endif ()
 endmacro(add_jni_library)
-
-
-
-
-
-
-
