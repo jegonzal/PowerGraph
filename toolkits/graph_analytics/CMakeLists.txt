@@ -16,6 +16,7 @@ add_graphlab_executable(approximate_diameter approximate_diameter.cpp)
 add_graphlab_executable(eigen_vector_normalization eigen_vector_normalization.cpp)
 add_graphlab_executable(graph_laplacian graph_laplacian.cpp)
 add_graphlab_executable(partitioning partitioning.cpp)
+add_graphlab_executable(sssp_mult_path sssp_mult_path.cpp)
 
 # add_graphlab_executable(warp_pagerank warp_pagerank.cpp)
 # add_graphlab_executable(warp_pagerank2 warp_pagerank2.cpp)
