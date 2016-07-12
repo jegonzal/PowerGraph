@@ -183,7 +183,7 @@ ExternalProject_Add(libbz2
 # unordered containers.
 ExternalProject_Add(boost
   PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
-  URL "http://tcpdiag.dl.sourceforge.net/project/boost/boost/1.53.0/boost_1_53_0.tar.gz" 
+  URL "https://sourceforge.net/projects/boost/files/boost/1.53.0/boost_1_53_0.tar.gz"
   URL_MD5 57a9e2047c0f511c4dfcf00eb5eb2fbb
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND
