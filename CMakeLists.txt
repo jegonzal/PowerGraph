@@ -183,7 +183,7 @@ ExternalProject_Add(libbz2
 # unordered containers.
 ExternalProject_Add(boost
   PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
-  URL "https://sourceforge.net/projects/boost/files/boost/1.53.0/boost_1_53_0.tar.gz"
+  URL "http://pilotfiber.dl.sourceforge.net/project/boost/boost/1.53.0/boost_1_53_0.tar.gz"
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND
   ./bootstrap.sh
@@ -308,8 +308,7 @@ endif()
 # OpenCV =================================================================
 ExternalProject_Add(opencv
   PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
-  URL http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.9/opencv-2.4.9.zip/download
-  # URL_MD5 010b63a2542c4ec4918c8cb431c00356
+  URL "https://github.com/opencv/opencv/archive/2.4.9.tar.gz"
   PATCH_COMMAND patch -N -p0 cmake/OpenCVModule.cmake -i ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch || true
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
   -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_DOCS=OFF -DBUILD_JPEG=ON -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DWITH_CUBLAS=OFF -DWITH_1394=OFF -DWITH_AVFOUNDATION=OFF -DWITH_CUDA=OFF -DWITH_CUFFT=OFF -DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QUICKTIME=OFF -DWITH_VIDEOINPUT=OFF -DWITH_XIMEA=OFF -DWITH_XINE=OFF -DWITH_V4L=OFF -DWITH_UNICAP=OFF -DWITH_QT=OFF -DWITH_JASPER=NO -DWITH_TIFF=NO -DWITH_OPENCL=OFF -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
