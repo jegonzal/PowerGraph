@@ -41,7 +41,7 @@ namespace graphlab {
 class fiber_control {
  public:
 
-  typedef fixed_dense_bitset<64> affinity_type;
+  typedef fixed_dense_bitset<128> affinity_type;
   static affinity_type all_affinity();
 
   struct fiber {
