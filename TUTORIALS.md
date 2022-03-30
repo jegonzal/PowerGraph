@@ -1,6 +1,6 @@
 # GraphLab PowerGraph Tutorials
 
-##Table of Contents
+## Table of Contents
 * [Deploying on AWS EC2 Cluster](#ec2)
 * [Deploying in a Cluster](#cluster)
 * [Deploying on a single multicore machine](#multicore)
@@ -142,7 +142,7 @@ wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validat
 ```
 Now run GraphLab:
 
-````
+```
 mpiexec -n 2 -hostfile ~/machines /path/to/als  --matrix /some/ns/folder/smallnetflix/ --max_iter=3 --ncpus=1 --minval=1 --maxval=5 --predictions=out_file
 ```
 Where -n is the number of MPI nodes, and –ncpus is the number of deployed cores on each MPI node.
@@ -240,7 +240,7 @@ or:
 Check that all machines have access to, or are using the same binary
 
 <a id="multicore"></a>
-#Deployment on a single multicore machine
+# Deployment on a single multicore machine
 
 ## Preliminaries:
 
@@ -352,7 +352,7 @@ Here is a more detailed explanation of the benchmarking process. The benchmarkin
 5. In case you would like to benchmark a different algorithm, you can add an additional youralgo_demo section into the gl_ec2.py script.
 6. In case you would like to bechmark a regular instance, simply change the following line in gl_ec2.py from
 
-````
+```
 ./gl-ec2 -i ~/.ssh/amazonec2.pem -k amazonec2 -a hpc -s $MAX_SLAVES -t cc2.8xlarge launch hpctest
 ```
 to:
@@ -436,7 +436,7 @@ Previous to the program execution, the graph is first loaded into memory and par
 
 or
 
-````
+```
 --graph_opts="ingress=grid" # works for power of 2 sized cluster i.e. 2,4,8,.. machines
 ```
 
